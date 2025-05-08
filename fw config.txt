@@ -1,0 +1,37 @@
+# 开启防火墙（第一次执行会有确认提示）
+sudo ufw enable
+
+# 开放 SSH（务必先执行，否则断连）
+sudo ufw allow ssh
+
+# 开放 HTTPS
+sudo ufw allow 443/tcp
+
+# 开放 WireGuard 默认端口（UDP 51820）
+sudo ufw allow 51820/udp
+
+# 禁止其他所有传入流量（默认行为）
+sudo ufw default deny incoming
+
+# 允许所有出去流量（默认行为）
+sudo ufw default allow outgoing
+
+
+查看当前防火墙状态
+sudo ufw status numbered
+
+如果你以后用 certbot 自动续期，还需要临时开放 80 端口：
+# 开放 80端口
+sudo ufw allow 80/tcp
+
+# 进行续期
+sudo certbot renew --standalone
+
+# 关闭 80端口
+sudo ufw delete allow 80/tcp
+
+使用 tcpdump 实时抓包
+sudo tcpdump -ni any udp port 51820
+
+sudo tcpdump -i eth0 udp port 51820
+

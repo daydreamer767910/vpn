@@ -1,0 +1,6 @@
+sudo apt install certbot -y
+
+sudo certbot certonly --standalone -d oumass.duckdns.org -d ddh2000.duckdns.org
+
+把/etc/letsencrypt/live下的证书拷贝到Nginx的配置目录:
+sudo cp /etc/letsencrypt/live Nginx/certbot/live

@@ -1,0 +1,42 @@
+{
+	"server": {
+	  "privateKey": "mBdYiRaehSlR6YtoxlUmE7AUrAbRwzglbySdgoonr1k=",
+	  "publicKey": "lZ57DoO5UANJes8BgjeHixaYZ0bq98lDAIu0nmLQ0w8=",
+	  "address": "10.8.0.1"
+	},
+	"clients": {
+	  "dbc8f28b-3089-4ae6-8f62-55412f8d3779": {
+		"id": "dbc8f28b-3089-4ae6-8f62-55412f8d3779",
+		"name": "home",
+		"address": "10.8.0.2",
+		"privateKey": "eLN8xrBwWm94dy5qghyfF139Z6z3OkK3gw5cd/eGYV0=",
+		"publicKey": "P8yWPasOggw7YEUMfKAWjR6iouyeXIoKfo8GIIa3tTY=",
+		"preSharedKey": "xgf/Jq2GiVOdC6Pu86IQ9DYrkKpBV0ncJUubxf//qrE=",
+		"createdAt": "2024-01-24T09:31:31.040Z",
+		"updatedAt": "2025-05-06T08:34:43.461Z",
+		"enabled": true
+	  },
+	  "8d1cfb23-91a0-403a-b749-f7a756adcbb1": {
+		"id": "8d1cfb23-91a0-403a-b749-f7a756adcbb1",
+		"name": "mass",
+		"address": "10.8.0.3",
+		"privateKey": "oF+SfUyLWzu/PvNGEbfq09ClkvD+XnlGf8GH2DHpLVM=",
+		"publicKey": "yUIZhPWl3RBOKxdfks1DFQozbH0TC9nPzOMWJOawtlw=",
+		"preSharedKey": "t142iL33Df28pjWhGDAQbyclhudkYqGJxxXQAne+10w=",
+		"createdAt": "2024-01-25T21:30:46.685Z",
+		"updatedAt": "2024-01-25T21:30:46.685Z",
+		"enabled": true
+	  },
+	  "a5e25f2a-e5a9-4623-9185-84a67cc9dea5": {
+		"id": "a5e25f2a-e5a9-4623-9185-84a67cc9dea5",
+		"name": "ltt",
+		"address": "10.8.0.5",
+		"privateKey": "kM+uVq0qrZ3rg79q6nWlXxotwwAMGySYB1rEXl+5+kk=",
+		"publicKey": "VH6kjkbOhqIjw7WoY5zPZKnXvqv0efxNjt97GDwbKQs=",
+		"preSharedKey": "Ot7iDodZ3Ki8Uc2WHunkpvoUBmZuqugNAgAOFTq2OWA=",
+		"createdAt": "2025-05-06T06:29:37.288Z",
+		"updatedAt": "2025-05-06T06:29:37.288Z",
+		"enabled": true
+	  }
+	}
+  }

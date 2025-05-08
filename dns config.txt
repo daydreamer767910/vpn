@@ -1,0 +1,5 @@
+直接修改/etc/hosts
+172.19.0.4 ddh2000.duckdns.org
+172.19.0.5 oumass.duckdns.org
+
+删除所有关于unbound的docker配置
