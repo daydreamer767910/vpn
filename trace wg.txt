@@ -15,7 +15,7 @@ not port 51820：排除 WireGuard 控制面
 sudo tcpdump -i eth0 -n 'tcp[tcpflags] & tcp-syn != 0 and port 443' -tttt
 
 测试wstunnel命令：
-curl -v "https://oumass.duckdns.org/ws/" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="
+curl -v "https://oumass.duckdns.org" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="
 
 Rejecting connection with bad upgrade request: /ws/只是正常结果，因为curl 不支持真正的 WebSocket 握手和数据交换，它只发 header
 

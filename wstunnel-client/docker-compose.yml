@@ -6,7 +6,7 @@ services:
     #tty: true
     #stdin_open: true
     command: >
-     /home/app/wstunnel client -L udp://0.0.0.0:51820:wg-easy:51820?timeout_sec=0 wss://oumass.duckdns.org/ws/
+     /home/app/wstunnel client -L udp://0.0.0.0:51820:wg-easy:51820?timeout_sec=0 wss://oumass.duckdns.org
     ports:
       - "51820:51820/udp"
 
