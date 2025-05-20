@@ -1,0 +1,35 @@
+方法一：用 tcpdump 抓出口流量（解析目标 IP）
+sudo tcpdump -i eth0 -n not port 22 and not port 51820
+
+-i eth0：你的真实网卡
+
+not port 22：排除 SSH
+
+not port 51820：排除 WireGuard 控制面
+
+-n：不做 DNS 解析，显示 IP
+
+推荐抓包方式：按客户端记录日志
+你可以用以下命令，记录通过出口接口的连接目标：
+
+sudo tcpdump -i eth0 -n 'tcp[tcpflags] & tcp-syn != 0 and port 443' -tttt
+
+测试wstunnel命令：
+curl -v "https://oumass.duckdns.org/ws/" -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ=="
+
+Rejecting connection with bad upgrade request: /ws/只是正常结果，因为curl 不支持真正的 WebSocket 握手和数据交换，它只发 header
+
+
+wstunnel client 测试错误:
+1.Nginx 报错
+2025/05/20 00:22:31 [error] 29#29: *207 open() "/etc/nginx/html/v1/events" failed (2: No such file or directory), client: 14.155.34.225, server: oumass.duckdns.org, request: "GET /v1/events HTTP/1.1", host: "oumass.duckdns.org"
+14.155.34.225 - - [20/May/2025:00:22:31 -0700] "GET /v1/events HTTP/1.1" 404 153 "-" "-" "-"
+
+2.ws client报错：
+wstunnel-client  | 2025-05-20T07:22:27.979034Z  INFO wstunnel::protocols::udp::server: New UDP connection from 172.21.0.1:58693
+wstunnel-client  | 2025-05-20T07:22:27.979063Z  INFO wstunnel::protocols::tcp::server: Opening TCP connection to oumass.duckdns.org:443
+wstunnel-client  | 2025-05-20T07:22:28.145084Z  INFO wstunnel::protocols::tls::server: Doing TLS handshake using SNI DnsName("oumass.duckdns.org") with the server oumass.duckdns.org:443
+wstunnel-client  | 2025-05-20T07:22:28.464368Z ERROR tunnel{id="0196ec92-870b-7680-abc4-798d5a959882" remote="wg-easy:51820"}: wstunnel::tunnel::client::client: failed to do websocket handshake with the server wss://oumass.duckdns.org:443  
+wstunnel-client  |
+wstunnel-client  | Caused by:
+wstunnel-client  |     Invalid status code: 404

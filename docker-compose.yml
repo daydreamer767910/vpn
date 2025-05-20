@@ -18,7 +18,19 @@ services:
     depends_on:
       - journal
       - wg-easy
-
+      - wstunnel
+  wstunnel:
+    image: ghcr.io/erebe/wstunnel:latest
+    container_name: wstunnel
+    restart: unless-stopped
+    command: >
+      /home/app/wstunnel server ws://0.0.0.0:8080/ws/
+    networks:
+      lan:
+        ipv4_address: 172.19.0.2
+    depends_on:
+      - wg-easy
+     
   journal:
     environment:
       - BIND_ADDRESS=0.0.0.0:5000
