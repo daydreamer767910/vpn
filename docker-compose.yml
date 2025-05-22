@@ -24,7 +24,7 @@ services:
     container_name: wstunnel
     restart: unless-stopped
     command: >
-      /home/app/wstunnel server ws://0.0.0.0:8080/ws/
+      /home/app/wstunnel server ws://0.0.0.0:8080
     networks:
       lan:
         ipv4_address: 172.19.0.2
@@ -64,7 +64,7 @@ services:
       #
       #- WG_PORT=51820
       # - WG_DEFAULT_ADDRESS=10.8.0.x
-      # - WG_MTU=1420
+      - WG_MTU=1300
       # - WG_ALLOWED_IPS=192.168.15.0/24, 10.0.1.0/24
       # - WG_PERSISTENT_KEEPALIVE=25
     image: ghcr.io/wg-easy/wg-easy
