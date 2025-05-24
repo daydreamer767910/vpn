@@ -1,0 +1,11 @@
+services:
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: singbox-tuic-client
+    network_mode: host  # 必须使用 host 模式以支持 TUN 网卡
+    cap_add:
+      - NET_ADMIN        # 创建虚拟网卡需要权限
+      - SYS_ADMIN
+    volumes:
+      - ./singbox:/etc/singbox
+    restart: always

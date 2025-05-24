@@ -1,0 +1,65 @@
+{
+  "log": {
+    "level": "debug",
+    "timestamp": true
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "address": ["172.31.255.2/30"],
+      "auto_route": true,
+      "stack": "gvisor",
+      "mtu": 1400,
+      "strict_route": true,
+      "sniff": true,
+      "sniff_override_destination": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "tuic",
+      "tag": "tuic-out",
+      "server": "146.190.131.64",
+      "server_port": 443,
+      "uuid": "4d5d8a3a-58b5-4cbe-b120-9bfb92c4a2b9",
+      "password": "fuckyou",
+      "congestion_control": "bbr",
+      "udp_relay_mode": "quic",
+      "tls": {
+        "enabled": true,
+        "insecure": false,
+        "server_name": "oumass.duckdns.org",
+        "alpn": ["h3"]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "rules": [
+      {
+        "type": "default",
+        "outbound": "tuic-out"
+      }
+    ]
+  },
+  "dns": {
+	"servers": [
+		{
+		"tag": "dns-remote",
+		"address": "8.8.8.8",
+		"detour": "tuic-out"
+		}
+	],
+	"rules": [
+		{
+		"outbound": "dns-remote",
+		"server": "dns-remote"
+		}
+	]
+	}
+}

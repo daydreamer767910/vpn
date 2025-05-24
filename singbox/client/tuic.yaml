@@ -1,0 +1,24 @@
+proxies:
+  - name: "tuic-vps"
+    type: tuic
+    server: 146.190.131.64
+    port: 443
+    uuid: 4d5d8a3a-58b5-4cbe-b120-9bfb92c4a2b9
+    password: "fuckyou"
+    congestion_control: bbr
+    udp_relay_mode: quic
+    alpn:
+      - h3
+    sni: oumass.duckdns.org
+    disable_sni: false
+    allow_insecure: false
+
+proxy-groups:
+  - name: "Proxy"
+    type: select
+    proxies:
+      - "tuic-vps"
+      - DIRECT
+
+rules:
+  - MATCH,Proxy

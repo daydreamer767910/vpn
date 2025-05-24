@@ -10,7 +10,7 @@ services:
          ipv4_address: 172.19.0.3
     ports:
       #- '80:80'
-      - '443:443'
+      - '443:443/tcp'
       #- "51820:51820/udp"
     volumes:
       - ./Nginx/conf/nginx.conf:/etc/nginx/nginx.conf
@@ -18,19 +18,35 @@ services:
     depends_on:
       - journal
       - wg-easy
-      - wstunnel
+
   wstunnel:
     image: ghcr.io/erebe/wstunnel:latest
     container_name: wstunnel
-    restart: unless-stopped
     command: >
       /home/app/wstunnel server ws://0.0.0.0:8080
+    restart: unless-stopped
     networks:
       lan:
         ipv4_address: 172.19.0.2
     depends_on:
       - wg-easy
-     
+
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: singbox-tuic-server
+    restart: unless-stopped
+    command: >
+      run -c /etc/singbox/config.json
+    volumes:
+      - ./singbox/server:/etc/singbox
+    ports:
+      - '443:443/udp'
+    networks:
+      lan:
+        ipv4_address: 172.19.0.6
+    depends_on:
+      - wg-easy
+
   journal:
     environment:
       - BIND_ADDRESS=0.0.0.0:5000
@@ -56,13 +72,14 @@ services:
       # ⚠️ Required:
       # Change this to your host's public address
       - WG_HOST=oumass.duckdns.org
+        #- WG_HOST=146.190.131.64
         #use the command below to generate hash password:
         #python3 -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"
         #- PASSWORD_HASH=$$2a$$12$$QZEXfjeCA2mNOS2GTaxwzeeJvbnkKGjR9AWfE7LCDkwQsTk.ltsZm
       - PASSWORD_HASH=$$2b$$12$$YTQh27QLgRUOpYnR56Wv4O4/KPRu2qwHP/5drcDi/lyfJOWWjx7x2
       # Optional:
       #
-      #- WG_PORT=51820
+      #- WG_PORT=8445
       # - WG_DEFAULT_ADDRESS=10.8.0.x
       - WG_MTU=1300
       # - WG_ALLOWED_IPS=192.168.15.0/24, 10.0.1.0/24
@@ -79,8 +96,9 @@ services:
       lan:
          ipv4_address: 172.19.0.5
     ports:
+      - '8448:51820/udp'
+      - '8449:51820/udp'
       - '51820:51820/udp'
-      #- '51821:51821'
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
@@ -93,4 +111,4 @@ networks:
       config:
         - subnet: 172.19.0.0/16
           gateway: 172.19.0.1
-
+          
