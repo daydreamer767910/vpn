@@ -1,0 +1,6 @@
+为了防止DNS泄露,需要:
+一. TUN模式：
+1. 设置DNS指向127.0.0.1和1.1.1.1
+2. 关闭网络的IPv6
+二. proxy模式：
+nothing need to do

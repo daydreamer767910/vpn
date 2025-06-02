@@ -1,0 +1,73 @@
+mode: rule
+mixed-port: 7890
+allow-lan: false
+log-level: info
+ipv6: false
+secret: fuckyou
+external-controller: 127.0.0.1:9090
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  listen: 0.0.0.0:53
+  nameserver:
+  - 223.5.5.5
+  - 114.114.114.114
+  fallback:
+  - tls://1.1.1.1
+  - tls://8.8.4.4
+  - tls://dns.google
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    ipcidr:
+    - 240.0.0.0/4
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+  - '*.lan'
+  - localhost.ptlogin2.qq.com
+  - dns.msftncsi.com
+  - '*.srv.nintendo.net'
+  - stun.*.*
+  - wpad
+  - '*.local'
+tun:
+  enable: true
+  stack: gvisor
+  dns-hijack:
+  - any:53
+  auto-route: true
+  auto-detect-interface: true
+  ignore:
+  - 127.0.0.1/8
+  - localhost
+  - ::1/128
+  - 224.0.0.0/4
+  - 0.0.0.0/0:51820
+  - ::/0:51820
+geox-url:
+  geoip: D:\clase\resources\Country.mmdb
+  geosite: D:\clase\resources\geosite.dat
+proxies:
+- name: tuic-vps
+  type: tuic
+  server: 146.190.131.64
+  port: 443
+  uuid: 1111-1111-1111-1111-1111
+  password: 11111111
+  congestion_control: bbr
+  udp_relay_mode: native
+  alpn:
+  - h3
+  sni: oumass.duckdns.org
+  disable_sni: false
+  allow_insecure: false
+proxy-groups:
+- name: Proxy
+  type: select
+  proxies:
+  - tuic-vps
+  - DIRECT
+rules:
+- DST-PORT,51820,DIRECT
+- MATCH,Proxy

@@ -1,0 +1,74 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": ["172.31.255.2/30"],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "tuic",
+      "tag": "proxy",
+      "server": "146.190.131.64",
+      "server_port": 443,
+      "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
+      "password": "oumass88",
+      "congestion_control": "bbr",
+      "tls": {
+        "enabled": true,
+        "server_name": "oumass.duckdns.org",
+        "insecure": true,
+        "alpn": ["h3"]
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "geoip": {
+      "download_url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db"
+    },
+    "geosite": {
+      "download_url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db"
+    },
+    "rules": [
+      {
+        "geosite": "cn",
+        "outbound": "direct"
+      },
+      {
+        "geoip": "cn",
+        "outbound": "direct"
+      },
+      {
+        "outbound": "proxy",
+        "ip_cidr": ["0.0.0.0/0", "::/0"]
+      }
+    ]
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-local",
+        "address": "223.5.5.5",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns-remote",
+        "address": "1.1.1.1",
+        "detour": "proxy"
+      }
+    ]
+  }
+}
