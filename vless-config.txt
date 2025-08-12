@@ -1,0 +1,11 @@
+1. docker exec -it singbox-vless-server /bin/sh
+
+
+2. sing-box generate reality-keypair
+
+PrivateKey: WH2m1ycr1QZJoRs2mIO5jme4HcBPHU_CC41cCtvx7FM
+PublicKey: 1NlXeWE6v0J3S-CN-VfX6qMZ0AuL_k4wR9dvLbHJrhw
+
+3. openssl rand -hex 8
+
+07290e1487ccbd1e

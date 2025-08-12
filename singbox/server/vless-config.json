@@ -1,0 +1,35 @@
+{
+  "log": { "level": "info" },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-reality-in",
+      "listen": "::",
+      "listen_port": 8443,
+      "users": [
+        {
+          "uuid": "11111111-2222-3333-4444-555555555555",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.microsoft.com",
+            "server_port": 443
+          },
+          "private_key": "WH2m1ycr1QZJoRs2mIO5jme4HcBPHU_CC41cCtvx7FM",
+          "short_id": [
+            "07290e1487ccbd1e"
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    { "type": "direct" }
+  ]
+}
