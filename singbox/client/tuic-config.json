@@ -25,7 +25,7 @@
       "tls": {
         "enabled": true,
         "server_name": "oumass.duckdns.org",
-        "insecure": true,
+        "insecure": false,
         "alpn": ["h3"]
       }
     },
