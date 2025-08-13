@@ -1,0 +1,37 @@
+{
+  "log": { "level": "info" },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": ["172.31.255.2/30"],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "hysteria2",
+	  "tag": "proxy",
+      "server": "oumass.duckdns.org",
+      "server_port": 8444,
+	  "obfs": {
+        "type": "salamander",
+        "password": "cry_me_a_r1ver"
+      },
+	  "masquerade": {
+        "type": "quic",
+        "quic": {
+          "header_type": "random",
+          "path": "/auth"
+        }
+      },
+	  "username": "default",
+      "password": "mypassword",
+      "tls": { "enabled": true, "server_name": "oumass.duckdns.org" },
+      "transport": { "path": "/hy2" }
+    }
+  ]
+}

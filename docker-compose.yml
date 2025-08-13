@@ -54,10 +54,24 @@ services:
     volumes:
       - ./singbox/server:/etc/singbox
     ports:
-      - '8443:8443/tcp'
+      - '8443:443/tcp'
     networks:
       lan:
         ipv4_address: 172.19.0.7
+
+  sing-box-hy2:
+    image: ghcr.io/sagernet/sing-box:latest
+    container_name: singbox-hy2-server
+    restart: unless-stopped
+    command: >
+      run -c /etc/singbox/hy2-config.json
+    volumes:
+      - ./singbox/server:/etc/singbox
+    ports:
+      - '8444:443/udp'
+    networks:
+      lan:
+        ipv4_address: 172.19.0.8
 
   journal:
     environment:
