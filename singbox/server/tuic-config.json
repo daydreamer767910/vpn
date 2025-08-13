@@ -28,5 +28,8 @@
       "type": "direct",
       "tag": "direct"
     }
-  ]
+  ],
+  "dns": {
+    "strategy": "ipv4_only"
+  }
 }

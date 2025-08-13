@@ -31,5 +31,8 @@
   ],
   "outbounds": [
     { "type": "direct" }
-  ]
+  ],
+  "dns": {
+    "strategy": "ipv4_only"
+  }
 }
