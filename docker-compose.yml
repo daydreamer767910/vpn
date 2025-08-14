@@ -53,8 +53,8 @@ services:
       run -c /etc/singbox/vless-config.json
     volumes:
       - ./singbox/server:/etc/singbox
-    ports:
-      - '8443:443/tcp'
+    #ports:
+    #  - '8443:443/tcp'
     networks:
       lan:
         ipv4_address: 172.19.0.7
@@ -68,7 +68,7 @@ services:
     volumes:
       - ./singbox/server:/etc/singbox
     ports:
-      - '8444:443/udp'
+      - '8443:443/udp'
     networks:
       lan:
         ipv4_address: 172.19.0.8
