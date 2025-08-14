@@ -16,7 +16,7 @@
       "type": "hysteria2",
 	    "tag": "proxy",
       "server": "oumass.duckdns.org",
-      "server_port": 8444,
+      "server_port": 8443,
 	    "obfs": {
         "type": "salamander",
         "password": "cry_me_a_r1ver"
