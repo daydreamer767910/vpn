@@ -35,21 +35,12 @@
   ],
   "dns": {
     "servers": [
-      {
-        "address": "223.5.5.5",
-        "tag": "direct-dns"
-      },
-      {
-        "address": "https://1.1.1.1/dns-query",
-        "tag": "proxy-dns",
-        "detour": "proxy"
-      }
+      { "address": "223.5.5.5", "detour": "direct", "tag": "cn-dns" },
+      { "address": "1.1.1.1", "detour": "proxy", "tag": "proxy-dns" }
     ],
     "rules": [
-      {
-        "rule_set": "geoip-cn",
-        "server": "direct-dns"
-      }
+      { "geosite": ["cn"], "server": "cn-dns" },
+      { "geosite": ["geolocation-!cn"], "server": "proxy-dns" }
     ],
     "final": "proxy-dns",
     "strategy": "prefer_ipv4",
@@ -61,39 +52,25 @@
         "type": "remote",
         "tag": "geoip-cn",
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/Loyalsoldier/geoip/release/Country.mmdb",
-        "download_detour": "proxy",
-        "update_interval": "24h"
+        "url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
+        "download_detour": "direct"
       },
       {
         "type": "remote",
         "tag": "geosite-cn",
         "format": "binary",
-        "url": "https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/geosite.dat",
-        "download_detour": "proxy",
-        "update_interval": "24h"
+        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
+        "download_detour": "direct"
       }
     ],
     "rules": [
       {
         "rule_set": "geosite-cn",
-        "outbound": "direct",
-        "domain_resolver": {
-          "server": "direct-dns"
-        }
+        "outbound": "direct"
       },
       {
         "rule_set": "geoip-cn",
-        "outbound": "direct",
-        "domain_resolver": {
-          "server": "direct-dns"
-        }
-      },
-      {
-        "outbound": "proxy",
-        "domain_resolver": {
-          "server": "proxy-dns"
-        }
+        "outbound": "direct"
       }
     ],
     "final": "proxy"
