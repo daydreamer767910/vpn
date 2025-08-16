@@ -31,47 +31,20 @@ services:
     depends_on:
       - wg-easy
 
-  sing-box-tuic:
+  sing-box:
     image: ghcr.io/sagernet/sing-box:latest
-    container_name: singbox-tuic-server
+    container_name: singbox-server
     restart: unless-stopped
     command: >
-      run -c /etc/singbox/tuic-config.json
+      run -c /etc/singbox/config.json
     volumes:
       - ./singbox/server:/etc/singbox
     ports:
       - '443:443/udp'
+      - '8443:8443/udp'
     networks:
       lan:
         ipv4_address: 172.19.0.6
-
-  sing-box-vless:
-    image: ghcr.io/sagernet/sing-box:latest
-    container_name: singbox-vless-server
-    restart: unless-stopped
-    command: >
-      run -c /etc/singbox/vless-config.json
-    volumes:
-      - ./singbox/server:/etc/singbox
-    #ports:
-    #  - '8443:443/tcp'
-    networks:
-      lan:
-        ipv4_address: 172.19.0.7
-
-  sing-box-hy2:
-    image: ghcr.io/sagernet/sing-box:latest
-    container_name: singbox-hy2-server
-    restart: unless-stopped
-    command: >
-      run -c /etc/singbox/hy2-config.json
-    volumes:
-      - ./singbox/server:/etc/singbox
-    ports:
-      - '8443:443/udp'
-    networks:
-      lan:
-        ipv4_address: 172.19.0.8
 
   journal:
     environment:

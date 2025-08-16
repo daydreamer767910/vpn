@@ -1,8 +1,38 @@
 {
   "log": {
-    "level": "info"
+    "level": "info",
+    "timestamp": true,
+    "output": "/var/log/singbox.log"
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "0.0.0.0:9090",
+      "secret": "admin123",
+      "access_control_allow_origin": [],
+      "access_control_allow_private_network": false
+    }
   },
   "inbounds": [
+    {
+      "type": "hysteria2",
+      "tag": "hy2-in",
+      "listen": "::",
+      "listen_port": 8443,
+      "obfs": {
+        "type": "salamander",
+        "password": "cry_me_a_r1ver"
+      },
+      "masquerade": {
+        "type": "file",
+        "directory": "file:///oumass/auth"
+      },
+      "users": [ { "name": "default", "password": "mypassword" } ],
+      "tls": { 
+        "enabled": true,
+        "certificate_path": "/etc/singbox/fullchain.pem",
+        "key_path": "/etc/singbox/privkey.pem"
+      }
+    },
     {
       "type": "tuic",
       "tag": "tuic-in",
@@ -10,16 +40,44 @@
       "listen_port": 443,
       "users": [
         {
-          "uuid": "4d5d8a3a-58b5-4cbe-b120-9bfb92c4a2b9",
-          "password": "fuckyou"
+          "name": "oumass",
+          "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
+          "password": "oumass88"
         }
       ],
       "congestion_control": "bbr",
       "tls": {
         "enabled": true,
         "alpn": ["h3"],
-        "certificate_path": "/etc/singbox/cert.pem",
+        "certificate_path": "/etc/singbox/fullchain.pem",
         "key_path": "/etc/singbox/privkey.pem"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-reality-in",
+      "listen": "::",
+      "listen_port": 443,
+      "users": [
+        {
+          "uuid": "11111111-2222-3333-4444-555555555555",
+          "flow": "xtls-rprx-vision"
+        }
+      ],
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "reality": {
+          "enabled": true,
+          "handshake": {
+            "server": "www.microsoft.com",
+            "server_port": 443
+          },
+          "private_key": "WH2m1ycr1QZJoRs2mIO5jme4HcBPHU_CC41cCtvx7FM",
+          "short_id": [
+            "07290e1487ccbd1e"
+          ]
+        }
       }
     }
   ],
@@ -28,5 +86,8 @@
       "type": "direct",
       "tag": "direct"
     }
-  ]
+  ],
+  "dns": {
+    "strategy": "ipv4_only"
+  }
 }
