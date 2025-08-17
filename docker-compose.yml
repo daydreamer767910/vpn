@@ -18,6 +18,7 @@ services:
     depends_on:
       - journal
       - wg-easy
+      - sing-box
 
   wstunnel:
     image: ghcr.io/erebe/wstunnel:latest
