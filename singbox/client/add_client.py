@@ -65,7 +65,8 @@ for user in users:
         print(f"用户 {user['name']} 未找到匹配的 outbound 协议，请检查模板和 --protocols 参数。")
 
     # 输出文件
-    output_file = os.path.join(args.output_dir, f"{user['name']}-config.json")
+    template_filename = os.path.basename(args.template)
+    output_file = os.path.join(args.output_dir, f"{user['name']}-{template_filename}")
     with open(output_file, "w") as f:
         json.dump(new_config, f, indent=2)
     print(f"已生成配置 -> {output_file}")

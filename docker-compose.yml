@@ -43,6 +43,9 @@ services:
     ports:
       - '443:443/udp'
       - '8443:8443/udp'
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     networks:
       lan:
         ipv4_address: 172.19.0.6
