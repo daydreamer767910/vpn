@@ -34,6 +34,8 @@ services:
 
   sing-box:
     image: ghcr.io/sagernet/sing-box:latest
+    environment:
+      - TZ=America/Los_Angeles
     container_name: singbox-server
     restart: unless-stopped
     command: >
