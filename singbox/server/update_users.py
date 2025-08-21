@@ -43,9 +43,9 @@ print(f"已备份原配置 -> {args.config}.bak")
 def format_users(protocol, users):
     protocol = protocol.lower()
     if protocol == "tuic":
-        return [{"uuid": u["uuid"], "password": u["password"]} for u in users]
+        return [{"name": u.get("name", ""), "uuid": u["uuid"], "password": u["password"]} for u in users]
     elif protocol == "vless":
-        return [{"uuid": u["uuid"], "flow": "xtls-rprx-vision"} for u in users]
+        return [{"name": u.get("name", ""), "uuid": u["uuid"], "flow": "xtls-rprx-vision"} for u in users]
     elif protocol == "hysteria2":
         return [{"name": u.get("name", ""), "password": u["password"]} for u in users]
     elif protocol == "shadowsocks":
