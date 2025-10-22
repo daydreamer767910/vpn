@@ -9,3 +9,15 @@ sudo cp /etc/letsencrypt/live Nginx/certbot/live
 sudo certbot renew --force-renewal
 然后把更新的证书复制到Nginx/certbot/...和singbox/server下面
 
+自动更新:
+1.chmod +x /home/vpn/vpn/smart_renew_cert.sh
+2.确保你的 smart_renew_cert.sh 能在 crontab 下自动执行，不需要输入密码：
+sudo visudo
+在打开的编辑器里写入：
+vpn ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/chown, /bin/chmod, /usr/bin/docker
+
+3.crontab -e
+在文件底部加一行，例如每天凌晨 3 点自动执行一次：
+0 3 * * * /home/vpn/vpn/smart_renew_cert.sh >> /home/vpn/vpn/renew_cert.log 2>&1
+检查是否加载成功:
+crontab -l
