@@ -14,6 +14,8 @@ sudo certbot renew --force-renewal
 2.确保你的 smart_renew_cert.sh 能在 crontab 下自动执行，不需要输入密码：
 sudo visudo
 在打开的编辑器里写入：
+Defaults:vpn !use_pty
+
 vpn ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/chown, /bin/chmod, /usr/bin/docker
 
 3.crontab -e

@@ -71,8 +71,6 @@ copy_cert() {
     mkdir -p "$NGINX_CERT_DST" "$SINGBOX_CERT_DST"
     sudo rsync -a --copy-links "$CERT_SRC"/ "$NGINX_CERT_DST"/
     sudo rsync -a --copy-links "$CERT_SRC"/ "$SINGBOX_CERT_DST"/
-    sudo chown -R vpn:vpn "$NGINX_CERT_DST" "$SINGBOX_CERT_DST"
-    sudo chmod -R 755 "$NGINX_CERT_DST" "$SINGBOX_CERT_DST"
     log "Certificates copied successfully."
 }
 
