@@ -4,8 +4,8 @@
 # No longer renews certificates (systemd handles that)
 # Now compares live certs with deployed certs and syncs if different.
 
-CERT_SRC="/etc/letsencrypt/live/oumass.duckdns.org"
-NGINX_CERT_DST="/home/vpn/vpn/Nginx/certbot/live/oumass.duckdns.org"
+CERT_SRC="/etc/letsencrypt/live/mass2000.duckdns.org"
+NGINX_CERT_DST="/home/vpn/vpn/Nginx/certbot"
 SINGBOX_CERT_DST="/home/vpn/vpn/singbox/server"
 NGINX_CONTAINER="nginx"
 SINGBOX_CONTAINER="singbox-server"

@@ -14,7 +14,7 @@ services:
       #- "51820:51820/udp"
     volumes:
       - ./Nginx/conf/nginx.conf:/etc/nginx/nginx.conf
-      - ./Nginx/certbot:/etc/letsencrypt
+      - ./Nginx/certbot:/etc/nginx/certbot
     depends_on:
       - journal
       - wg-easy
