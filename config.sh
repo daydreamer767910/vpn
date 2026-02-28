@@ -3,6 +3,7 @@
 
 # 最终用户
 DEPLOY_USER="vpn"
+USER_EMAIL="daydreamer767910@gmail.com"
 
 # 域名列表
 DOMAINS="mass2000.duckdns.org dd2000.duckdns.org"

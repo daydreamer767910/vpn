@@ -16,7 +16,7 @@ echo "==== [DEPLOY] Starting deployment ===="
 # 安装必要工具
 # -------------------------
 apt update
-apt install -y git curl ufw apt-transport-https ca-certificates gnupg lsb-release software-properties-common
+apt install -y ertbo git curl ufw apt-transport-https ca-certificates gnupg lsb-release software-properties-common
 
 # 安装 Docker（安全版）
 # -------------------------
@@ -30,6 +30,18 @@ else
     echo "[INFO] Docker installation completed: $(docker --version)"
 fi
 
+# ================================
+# 申请证书
+# ================================
+log "Obtaining Let's Encrypt certificates..."
+
+certbot certonly --standalone \
+    $(printf -- "-d %s " $DOMAINS) \
+    --non-interactive \
+    --agree-tos \
+    -m "$USER_EMAIL"
+
+log "Certificates obtained."
 
 # -------------------------
 # 创建最终用户
