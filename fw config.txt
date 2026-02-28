@@ -19,6 +19,17 @@ sudo ufw default allow outgoing
 
 查看当前防火墙状态
 sudo ufw status numbered
+开放：
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+sudo ufw allow 443/udp
+sudo ufw allow 8443/udp
+sudo ufw allow 51820/udp
+
+
+
 
 如果你以后用 certbot 自动续期，还需要临时开放 80 端口：
 # 开放 80端口

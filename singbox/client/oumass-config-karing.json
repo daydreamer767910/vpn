@@ -16,7 +16,7 @@
     {
       "type": "hysteria2",
       "tag": "hy2-out",
-      "server": "oumass.duckdns.org",
+      "server": "mass2000.duckdns.org",
       "server_port": 8443,
       "obfs": {
         "type": "salamander",
@@ -29,20 +29,20 @@
       "password": "xfCZwGoENVgtGhK1dKi7CQ",
       "tls": {
         "enabled": true,
-        "server_name": "oumass.duckdns.org"
+        "server_name": "mass2000.duckdns.org"
       }
     },
     {
       "type": "tuic",
       "tag": "tuic-out",
-      "server": "oumass.duckdns.org",
+      "server": "mass2000.duckdns.org",
       "server_port": 443,
       "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
       "password": "xfCZwGoENVgtGhK1dKi7CQ",
       "congestion_control": "bbr",
       "tls": {
         "enabled": true,
-        "server_name": "oumass.duckdns.org",
+        "server_name": "mass2000.duckdns.org",
         "insecure": false,
         "alpn": [
           "h3"
@@ -52,7 +52,7 @@
     {
       "type": "vless",
       "tag": "vless-out",
-      "server": "oumass.duckdns.org",
+      "server": "mass2000.duckdns.org",
       "server_port": 443,
       "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
       "flow": "xtls-rprx-vision",
