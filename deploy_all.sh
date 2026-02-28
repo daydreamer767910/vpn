@@ -48,12 +48,20 @@ usermod -aG docker "$DEPLOY_USER"
 usermod -aG sudo "$DEPLOY_USER"
 
 # 4. 设置 SSH 公钥登录
-mkdir -p /home/"$DEPLOY_USER"/.ssh
-cp ~/.ssh/authorized_keys /home/"$DEPLOY_USER"/.ssh/
-chown -R "$DEPLOY_USER":"$DEPLOY_USER" /home/"$DEPLOY_USER"/.ssh
-chmod 700 /home/"$DEPLOY_USER"/.ssh
-chmod 600 /home/"$DEPLOY_USER"/.ssh/authorized_keys
+SSH_KEY_SRC="$HOME/.ssh/authorized_keys"
+SSH_DIR="/home/$DEPLOY_USER/.ssh"
 
+mkdir -p "$SSH_DIR"
+
+if [ -f "$SSH_KEY_SRC" ]; then
+    cp "$SSH_KEY_SRC" "$SSH_DIR/"
+    chown -R "$DEPLOY_USER":"$DEPLOY_USER" "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
+    chmod 600 "$SSH_DIR/authorized_keys"
+    echo "SSH key copied to $DEPLOY_USER"
+else
+    echo "Warning: $SSH_KEY_SRC does not exist. Skipping SSH key setup."
+fi
 # -------------------------
 
 # -------------------------
