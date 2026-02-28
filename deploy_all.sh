@@ -6,11 +6,9 @@
 set -e
 
 # -------------------------
-# 配置
+# 加载配置
 # -------------------------
-REPO_URL="https://github.com/daydreamer767910/vpn.git"
-CONFIG_FILE="./vpn/config.sh"
-
+source "./config.sh"
 
 echo "==== [DEPLOY] Starting deployment ===="
 
@@ -20,14 +18,18 @@ echo "==== [DEPLOY] Starting deployment ===="
 apt update
 apt install -y git curl ufw apt-transport-https ca-certificates gnupg lsb-release software-properties-common
 
-# 安装 Docker
-curl -fsSL https://get.docker.com | sh
-
-
+# 安装 Docker（安全版）
 # -------------------------
-# 加载配置
-# -------------------------
-source "$CONFIG_FILE"
+echo "==== [INFO] Checking Docker installation ===="
+if command -v docker &>/dev/null; then
+    echo "[INFO] Docker is already installed: $(docker --version)"
+    echo "[INFO] Skipping Docker installation to avoid overwriting custom settings."
+else
+    echo "[INFO] Docker not found. Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+    echo "[INFO] Docker installation completed: $(docker --version)"
+fi
+
 
 # -------------------------
 # 创建最终用户
@@ -49,10 +51,10 @@ chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 # -------------------------
 # 移动仓库内容到用户目录
 # -------------------------
-echo "[INFO] Moving repository contents to /home/$DEPLOY_USER..."
+echo "[INFO] Copying repository contents to /home/$DEPLOY_USER..."
 
 # 仓库里根目录是 vpn，移动其内容而不是整个 vpn 文件夹
-mv vpn /home/$DEPLOY_USER/
+cp -a . /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------
