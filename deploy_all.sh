@@ -39,9 +39,7 @@ certbot certonly --standalone \
     $(printf -- "-d %s " $DOMAINS) \
     --non-interactive \
     --agree-tos \
-    -m "$USER_EMAIL"
-
-echo "Certificates obtained."
+    -m "$USER_EMAIL" || true
 
 # -------------------------
 # 创建最终用户
