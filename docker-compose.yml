@@ -20,18 +20,6 @@ services:
       - wg-easy
       - sing-box
 
-  wstunnel:
-    image: ghcr.io/erebe/wstunnel:latest
-    container_name: wstunnel
-    command: >
-      /home/app/wstunnel server ws://0.0.0.0:8080
-    restart: unless-stopped
-    networks:
-      lan:
-        ipv4_address: 172.19.0.2
-    depends_on:
-      - wg-easy
-
   sing-box:
     image: ghcr.io/sagernet/sing-box:latest
     environment:
@@ -101,9 +89,6 @@ services:
       lan:
          ipv4_address: 172.19.0.5
     ports:
-      - '8528:51820/udp'
-      - '8529:51820/udp'
-      - '8530:51820/udp'
       - '51820:51820/udp'
     sysctls:
       - net.ipv4.ip_forward=1

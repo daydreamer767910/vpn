@@ -1,69 +1,55 @@
-## 在 Ubuntu 上安装 Docker 的完整步骤：
+安装最新版 Docker，同时系统安全。
 
-### **1. 更新系统**
+1️⃣ 先更新系统软件包：
 
-```bash
-sudo apt update
-sudo apt upgrade -y
-```
+apt update && apt upgrade -y
 
----
 
-### **2. 安装必要的依赖**
+检查系统版本：
 
-```bash
-sudo apt install -y ca-certificates curl gnupg lsb-release
-```
+lsb_release -a
 
----
 
-### **3. 添加 Docker 官方的 GPG 密钥**
+确保是 Ubuntu 20.04/22.04 或 Debian 11/12，官方支持最好。
 
-```bash
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-```
+2️⃣ 安装必要依赖
 
----
+Docker 官方脚本需要几个依赖：
 
-### **4. 设置 Docker 仓库源**
+apt install -y apt-transport-https ca-certificates curl gnupg lsb-release
 
-```bash
-echo \
-  "deb [arch=$(dpkg --print-architecture) \
-  signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-```
+3️⃣ 使用官方 Docker 脚本安装
+curl -fsSL https://get.docker.com | sh
 
----
 
-### **5. 安装 Docker Engine**
+这个脚本会：
 
-```bash
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io
-```
+添加 Docker 官方源
 
----
+安装最新稳定版 Docker Engine
 
-### **6. 启动 Docker 并设置为开机启动**
+配置 systemd 服务
 
-```bash
-sudo systemctl enable docker
-sudo systemctl start docker
-```
 
----
-
-### **7. 验证安装**
-
-```bash
+4️⃣ 验证安装
 docker --version
+
+
+输出示例：
+
+Docker version 24.0.5, build xxxx
+
+
+启动并设置开机自启：
+
+systemctl start docker
+systemctl enable docker
+
+重新登录 SSH。
+
+验证：
+
 docker run hello-world
-```
 
 如果一切顺利，运行 `hello-world` 会输出一段欢迎信息，说明 Docker 安装成功。
 
