@@ -70,7 +70,8 @@ fi
 echo "[INFO] Copying repository contents to /home/$DEPLOY_USER..."
 
 # 仓库里根目录是 vpn，移动其内容而不是整个 vpn 文件夹
-cp -a . /home/$DEPLOY_USER/
+#cp -a . /home/$DEPLOY_USER/
+rsync -a --exclude='deploy_all.sh' --exclude='.git' ./ /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------
@@ -83,7 +84,9 @@ ufw allow 443/tcp
 ufw allow 443/udp
 ufw allow 8443/udp
 ufw allow 51820/udp
-ufw --force enable
+if ! ufw status | grep -q "Status: active"; then
+    ufw --force enable
+fi
 
 # ================================
 # 申请证书, 成功后再复制
@@ -119,8 +122,11 @@ fi
 # 配置 sudo NOPASSWD 给最终用户
 # -------------------------
 echo "[INFO] Configuring sudoers..."
-echo "Defaults:$DEPLOY_USER !use_pty" >> /etc/sudoers
-echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/chown, /bin/chmod, /usr/bin/docker" >> /etc/sudoers
+#echo "Defaults:$DEPLOY_USER !use_pty" >> /etc/sudoers
+#echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/chown, /bin/chmod, /usr/bin/docker" >> /etc/sudoers
+echo "Defaults:$DEPLOY_USER !use_pty" > /etc/sudoers.d/$DEPLOY_USER
+echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/chown, /bin/chmod, /usr/bin/docker" >> /etc/sudoers.d/$DEPLOY_USER
+chmod 440 /etc/sudoers.d/$DEPLOY_USER
 
 # -------------------------
 # smart_run.sh 可执行
@@ -130,7 +136,9 @@ chmod +x "/home/$DEPLOY_USER/smart_run.sh"
 # 配置 crontab（目标用户下）
 # -------------------------
 echo "[INFO] Setting crontab for smart_run.sh..."
-sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null; echo '0 3 * * * /home/$DEPLOY_USER/smart_run.sh >> /home/$DEPLOY_USER/renew_cert.log 2>&1') | crontab -"
+#sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null; echo '0 3 * * * /home/$DEPLOY_USER/smart_run.sh >> /home/$DEPLOY_USER/renew_cert.log 2>&1') | crontab -"
+CRON_JOB="0 3 * * * /home/$DEPLOY_USER/smart_run.sh >> $LOG_FILE 2>&1"
+sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; echo '$CRON_JOB') | crontab -"
 
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
