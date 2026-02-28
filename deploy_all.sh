@@ -34,19 +34,28 @@ fi
 # -------------------------
 # 创建最终用户
 # -------------------------
+# 1. 创建新用户（如果不存在）
 if ! id "$DEPLOY_USER" &>/dev/null; then
-    echo "[INFO] Creating user $DEPLOY_USER..."
     adduser --gecos "" "$DEPLOY_USER"
-    usermod -aG sudo,docker "$DEPLOY_USER"
-else
-    echo "[INFO] User $DEPLOY_USER already exists, skipping creation."
+	# 准备用户目录
+	mkdir -p /home/$DEPLOY_USER
+	chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 fi
 
+# 2. 将新用户加入 docker 用户组
+usermod -aG docker "$DEPLOY_USER"
+
+# 3. 给该用户 sudo 权限（可选）
+usermod -aG sudo "$DEPLOY_USER"
+
+# 4. 设置 SSH 公钥登录
+mkdir -p /home/"$DEPLOY_USER"/.ssh
+cp ~/.ssh/authorized_keys /home/"$DEPLOY_USER"/.ssh/
+chown -R "$DEPLOY_USER":"$DEPLOY_USER" /home/"$DEPLOY_USER"/.ssh
+chmod 700 /home/"$DEPLOY_USER"/.ssh
+chmod 600 /home/"$DEPLOY_USER"/.ssh/authorized_keys
+
 # -------------------------
-# 准备用户目录
-# -------------------------
-mkdir -p /home/$DEPLOY_USER
-chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------
 # 移动仓库内容到用户目录
