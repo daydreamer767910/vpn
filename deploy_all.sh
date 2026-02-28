@@ -9,8 +9,8 @@ set -e
 # 配置
 # -------------------------
 REPO_URL="https://github.com/daydreamer767910/vpn.git"
-CONFIG_FILE="config.sh"
-TMP_DIR="/root/vpn_tmp"
+CONFIG_FILE="./vpn/config.sh"
+
 
 echo "==== [DEPLOY] Starting deployment ===="
 
@@ -23,21 +23,11 @@ apt install -y git curl ufw apt-transport-https ca-certificates gnupg lsb-releas
 # 安装 Docker
 curl -fsSL https://get.docker.com | sh
 
-# -------------------------
-# 克隆仓库到临时目录
-# -------------------------
-mkdir -p "$TMP_DIR"
-cd "$TMP_DIR"
-if [ ! -d vpn ]; then
-    git clone "$REPO_URL"
-else
-    echo "[INFO] VPN repo already exists in $TMP_DIR/vpn, skipping clone"
-fi
 
 # -------------------------
 # 加载配置
 # -------------------------
-source "$TMP_DIR/vpn/$CONFIG_FILE"
+source "$CONFIG_FILE"
 
 # -------------------------
 # 创建最终用户
@@ -62,7 +52,7 @@ chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 echo "[INFO] Moving repository contents to /home/$DEPLOY_USER..."
 
 # 仓库里根目录是 vpn，移动其内容而不是整个 vpn 文件夹
-rsync -a --exclude='.git' "$TMP_DIR/vpn/" /home/$DEPLOY_USER/
+mv vpn /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------
