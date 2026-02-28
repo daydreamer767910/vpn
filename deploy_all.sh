@@ -30,17 +30,6 @@ else
     echo "[INFO] Docker installation completed: $(docker --version)"
 fi
 
-# ================================
-# 申请证书
-# ================================
-echo "====Obtaining Let's Encrypt certificates..."
-
-certbot certonly --standalone \
-    $(printf -- "-d %s " $DOMAINS) \
-    --non-interactive \
-    --agree-tos \
-    -m "$USER_EMAIL" || true
-
 # -------------------------
 # 创建最终用户
 # -------------------------
@@ -88,6 +77,36 @@ ufw allow 8443/udp
 ufw allow 51820/udp
 ufw --force enable
 
+# ================================
+# 申请证书, 成功后再复制
+# ================================
+
+echo "==== Obtaining Let's Encrypt certificates..."
+
+if certbot certonly --standalone \
+    $(printf -- "-d %s " $DOMAINS) \
+    --non-interactive \
+    --agree-tos \
+    -m "$USER_EMAIL"
+then
+    echo "==== Certificate obtained successfully."
+
+    echo "==== Copying certificates..."
+
+    mkdir -p "$NGINX_CERT_DST" "$SINGBOX_CERT_DST"
+
+    rsync -a --copy-links "$CERT_SRC"/ "$NGINX_CERT_DST"/
+    rsync -a --copy-links "$CERT_SRC"/ "$SINGBOX_CERT_DST"/
+
+    # 修改权限
+    chown -R $DEPLOY_USER:$DEPLOY_USER "$NGINX_CERT_DST"
+    chown -R $DEPLOY_USER:$DEPLOY_USER "$SINGBOX_CERT_DST"
+
+    echo "==== Certificates copied successfully."
+else
+    echo "!!!! Certificate obtain failed. Skipping copy step."
+fi
+
 # -------------------------
 # 配置 sudo NOPASSWD 给最终用户
 # -------------------------
@@ -108,4 +127,4 @@ sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null; echo '0 3 * * * /home/$DE
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "1. Switch to user: su - $DEPLOY_USER"
-echo "2. Run smart_run.sh for initial sync"
+echo "2. Run docker compose up -d for initial sync"
