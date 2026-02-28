@@ -92,7 +92,7 @@ ufw --force enable
 echo "==== Obtaining Let's Encrypt certificates..."
 
 if certbot certonly --standalone \
-    $(printf -- "-d %s " $DOMAINS) \
+    $(printf -- "-d %s " "${DOMAINLIST[@]}") \
     --non-interactive \
     --agree-tos \
     -m "$USER_EMAIL"

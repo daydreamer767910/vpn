@@ -6,10 +6,10 @@ DEPLOY_USER="vpn"
 USER_EMAIL="daydreamer767910@gmail.com"
 
 # 域名列表
-DOMAINS="mass2000.duckdns.org dd2000.duckdns.org"
+DOMAINLIST=("mass2000.duckdns.org" "dd2000.duckdns.org")
 
 # 证书源目录（smart_run.sh 会使用）
-CERT_SRC="/etc/letsencrypt/live/mass2000.duckdns.org"
+CERT_SRC="/etc/letsencrypt/live/${DOMAINLIST[0]}"
 NGINX_CERT_DST="/home/$DEPLOY_USER/Nginx/certbot"
 SINGBOX_CERT_DST="/home/$DEPLOY_USER/singbox/server"
 
@@ -20,5 +20,3 @@ SINGBOX_CONTAINER="singbox-server"
 # 日志文件
 LOG_FILE="/home/$DEPLOY_USER/smart_run.log"
 
-# smart_run.sh 路径
-SMART_RENEW_SCRIPT="/home/$DEPLOY_USER/smart_run.sh"
