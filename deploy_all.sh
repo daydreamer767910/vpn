@@ -99,7 +99,6 @@ echo "$DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/sha256sum, /usr/bin/rsync, /bin/
 # smart_run.sh 可执行
 # -------------------------
 chmod +x "/home/$DEPLOY_USER/smart_run.sh"
-chmod +x "/home/$DEPLOY_USER/smart_renew_cert.sh"
 # -------------------------
 # 配置 crontab（目标用户下）
 # -------------------------
