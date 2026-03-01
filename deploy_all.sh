@@ -29,7 +29,17 @@ else
     curl -fsSL https://get.docker.com | sh
     echo "[INFO] Docker installation completed: $(docker --version)"
 fi
+# ================================
+# 设置时区和时间同步
+# ================================
+TIMEZONE="${TIMEZONE:-Asia/Shanghai}"
 
+if command -v timedatectl >/dev/null 2>&1; then
+    echo "==== Setting timezone to $TIMEZONE ===="
+    timedatectl set-timezone "$TIMEZONE"
+else
+    echo "timedatectl not found, skipping timezone setup."
+fi
 # -------------------------
 # 创建最终用户
 # -------------------------

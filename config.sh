@@ -5,10 +5,12 @@
 DEPLOY_USER="vpn"
 USER_EMAIL="daydreamer767910@gmail.com"
 
+# 时区
+TIMEZONE="America/Los_Angeles"
 # 域名列表
 DOMAINLIST=("mass2000.duckdns.org" "dd2000.duckdns.org")
 
-# 证书源目录（smart_run.sh 会使用）
+# 证书源目录
 CERT_SRC="/etc/letsencrypt/live/${DOMAINLIST[0]}"
 NGINX_CERT_DST="/home/$DEPLOY_USER/Nginx/certbot"
 SINGBOX_CERT_DST="/home/$DEPLOY_USER/singbox/server"
