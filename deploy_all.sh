@@ -71,7 +71,7 @@ echo "[INFO] Copying repository contents to /home/$DEPLOY_USER..."
 
 # 仓库里根目录是 vpn，移动其内容而不是整个 vpn 文件夹
 #cp -a . /home/$DEPLOY_USER/
-rsync -a --exclude='deploy_all.sh' --exclude='.git' ./ /home/$DEPLOY_USER/
+rsync -a --exclude='deploy_all.sh' --exclude='.git' --exclude='.md' ./ /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------

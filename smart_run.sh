@@ -8,6 +8,10 @@ source $HOME/config.sh
 # ==========================
 # Logging
 # ==========================
+LOG_DIR="$(dirname "$LOG_FILE")"
+
+# 确保日志目录存在
+mkdir -p "$LOG_DIR"
 exec >> "$LOG_FILE" 2>&1
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
