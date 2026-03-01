@@ -18,5 +18,7 @@ NGINX_CONTAINER="nginx"
 SINGBOX_CONTAINER="singbox-server"
 
 # 日志文件
-LOG_FILE="/home/$DEPLOY_USER/smart_run.log"
+LOG_FILE="/home/$DEPLOY_USER/log/smart_run.log"
 
+# 定期检查证书
+CRON_SCHEDULE="0 3 * * *"

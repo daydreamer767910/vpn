@@ -137,7 +137,8 @@ chmod +x "/home/$DEPLOY_USER/smart_run.sh"
 # -------------------------
 echo "[INFO] Setting crontab for smart_run.sh..."
 #sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null; echo '0 3 * * * /home/$DEPLOY_USER/smart_run.sh >> /home/$DEPLOY_USER/renew_cert.log 2>&1') | crontab -"
-CRON_JOB="0 3 * * * /home/$DEPLOY_USER/smart_run.sh >> $LOG_FILE 2>&1"
+CRON_SCHEDULE="${CRON_SCHEDULE:-0 3 * * *}"
+CRON_JOB="$CRON_SCHEDULE /home/$DEPLOY_USER/smart_run.sh"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; echo '$CRON_JOB') | crontab -"
 
 echo "==== [DEPLOY] Deployment complete! ===="
