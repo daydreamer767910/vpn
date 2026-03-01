@@ -42,9 +42,11 @@ services:
 
   journal:
     environment:
+      - TZ=America/Los_Angeles
       - BIND_ADDRESS=0.0.0.0:5000
       - JWT_SECRET=12345678
-    image: daydreamer767910/journal:latest
+    #image: daydreamer767910/journal:latest
+    build: ./journal
     container_name: journal
     networks:
       lan:
