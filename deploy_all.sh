@@ -88,12 +88,20 @@ chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 # 配置防火墙
 # -------------------------
 echo "[INFO] Configuring UFW..."
+echo "[INFO] Resetting UFW..."
+# 清理所有 UFW 规则并禁用
+ufw --force reset
+echo "[INFO] Setting default policies..."
+# 默认拒绝所有传入，允许所有传出
+ufw default deny incoming
+ufw default allow outgoing
+echo "[INFO] Allowing required ports..."
+# 允许需要的端口
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
-
-ufw allow 7443/udp
-ufw allow 7444/udp
+ufw allow 443/udp
+ufw allow 8443/udp
 ufw allow 51820/udp
 if ! ufw status | grep -q "Status: active"; then
     ufw --force enable

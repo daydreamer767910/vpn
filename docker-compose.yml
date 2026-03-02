@@ -32,9 +32,9 @@ services:
       #VLESS / Reality 
       #- '7443:443/tcp' (走nginx 443反代)
       #TUIC
-      - '7443:443/udp'
+      - '443:443/udp'
       #Hysteria2
-      - '7444:444/udp'
+      - '8443:444/udp'
     dns:
       - 1.1.1.1
       - 8.8.8.8
