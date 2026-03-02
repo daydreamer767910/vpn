@@ -1,0 +1,60 @@
+## **1️⃣ 仓库第一次拉取**
+
+```bash
+git clone https://github.com/daydreamer767910/vpn.git
+```
+
+* 会在当前目录创建 `vpn/` 文件夹
+* 默认会拉取 `main`（或 `master`）分支最新代码
+
+---
+
+## **2️⃣ 已经克隆过仓库，更新最新代码**
+
+进入仓库目录：
+
+```bash
+cd vpn
+```
+
+然后拉取最新代码：
+
+```bash
+git pull origin main
+```
+
+* `origin` 是默认远程仓库名
+* `main` 是分支名（你也可能用 `master` 或其他分支）
+* 这样会把远程最新提交拉到本地，并合并
+
+> ⚠ 注意：如果你本地改过文件，`git pull` 可能会冲突，需要先 `stash` 或提交本地改动。
+
+---
+
+## **3️⃣ 如果你想覆盖本地，直接获取远程最新**
+
+```bash
+git fetch origin
+git reset --hard origin/main
+```
+
+* 会把本地仓库直接重置为远程最新状态
+* **本地未提交的修改会被覆盖！**
+
+---
+
+## **4️⃣ 使用 HTTPS 需要代理**
+
+你之前提到 VPS 国内网络不稳定，如果使用 HTTPS 拉取可能报错：
+
+```bash
+git clone https://github.com/daydreamer767910/vpn.git
+```
+
+* 如果 VPS 有代理，可以配置：
+
+```bash
+git config --global http.proxy http://127.0.0.1:3067
+git config --global https.proxy http://127.0.0.1:3067
+```
+

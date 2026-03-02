@@ -9,9 +9,7 @@ services:
       lan:
          ipv4_address: 172.19.0.3
     ports:
-      #- '80:80'
       - '443:443/tcp'
-      #- "51820:51820/udp"
     volumes:
       - ./Nginx/conf/nginx.conf:/etc/nginx/nginx.conf
       - ./Nginx/certbot:/etc/nginx/certbot
@@ -31,8 +29,12 @@ services:
     volumes:
       - ./singbox/server:/etc/singbox
     ports:
-      - '443:443/udp'
+      #VLESS / Reality
+      - '8443:8443/tcp'
+      #TUIC
       - '8443:8443/udp'
+      #Hysteria2
+      - '8444:8444/udp'
     dns:
       - 1.1.1.1
       - 8.8.8.8
