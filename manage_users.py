@@ -9,7 +9,7 @@ import argparse
 # ------------------------
 # 命令行参数
 # ------------------------
-parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本（跨平台 UTF-8 安全，支持 TLS server_name）")
+parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本（跨平台 UTF-8，支持 Reality SNI）")
 parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
                     help="指定需要更新的协议")
 parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
@@ -36,12 +36,13 @@ os.makedirs(os.path.dirname(CLIENT_TEMPLATE_FILE), exist_ok=True)
 os.makedirs(CLIENT_OUTPUT_DIR, exist_ok=True)
 
 # ------------------------
-# 从 config.sh 获取第一个域名（UTF-8 安全）
+# 从 config.sh 获取域名和 Reality SNI
 # ------------------------
-def get_first_domain(sh_file):
-    domain = None
+def parse_config_sh(sh_file):
+    first_domain = None
+    reality_sni = None
     if os.path.exists(sh_file):
-        with open(sh_file, "r", encoding="utf-8") as f:  # 指定 UTF-8
+        with open(sh_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("DOMAINLIST"):
@@ -50,13 +51,16 @@ def get_first_domain(sh_file):
                     if start != -1 and end != -1:
                         items = line[start+1:end].replace('"', '').split()
                         if items:
-                            domain = items[0]
-                    break
-    return domain
+                            first_domain = items[0]
+                elif line.startswith("SNI="):
+                    reality_sni = line.split("=",1)[1].strip().strip('"')
+    return first_domain, reality_sni
 
-first_domain = get_first_domain(CONFIG_SH)
+first_domain, reality_sni = parse_config_sh(CONFIG_SH)
 if not first_domain:
-    print("⚠️ config.sh 未找到 DOMAINLIST 或为空，客户端 server 和 tls.server_name 不会修改。")
+    print("⚠️ config.sh 未找到 DOMAINLIST 或为空，客户端 server 和 TLS server_name 不会修改。")
+if not reality_sni:
+    print("⚠️ config.sh 未找到 SNI，Reality 模式 server_name 不会修改。")
 
 # ------------------------
 # 随机密码生成
@@ -146,7 +150,7 @@ else:
     print("没有匹配到需要更新的 inbound 用户。")
 
 # ------------------------
-# 生成客户端配置（替换 server 和 tls.server_name）
+# 生成客户端配置（智能处理 Reality / TLS）
 # ------------------------
 try:
     with open(CLIENT_TEMPLATE_FILE, "r", encoding="utf-8") as f:
@@ -166,7 +170,7 @@ for user in users:
         protocol = outbound.get("type", "").lower()
         if protocol not in [p.lower() for p in args.protocols]:
             continue
-        # 更新用户相关字段
+        # 更新用户字段
         if protocol == "tuic":
             outbound["uuid"] = user["uuid"]
             outbound["password"] = user["password"]
@@ -183,7 +187,11 @@ for user in users:
             if "server" in outbound:
                 outbound["server"] = first_domain
             if "tls" in outbound and isinstance(outbound["tls"], dict):
-                outbound["tls"]["server_name"] = first_domain
+                if "reality" in outbound["tls"]:
+                    if reality_sni:
+                        outbound["tls"]["server_name"] = reality_sni
+                else:
+                    outbound["tls"]["server_name"] = first_domain
 
     if not updated:
         print(f"用户 {user['name']} 未匹配任何 outbound 协议，请检查模板和 --protocols 参数。")

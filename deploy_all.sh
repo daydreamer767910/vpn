@@ -163,4 +163,5 @@ sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; 
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "1. Switch to user: su - $DEPLOY_USER"
-echo "2. Run docker compose up -d for initial sync"
+echo "2. Run python3 manage_users.py for initial users"
+echo "3. Run docker compose up -d for initial sync"

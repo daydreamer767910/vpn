@@ -8,6 +8,7 @@ USER_EMAIL="daydreamer767910@gmail.com"
 # 时区
 TIMEZONE="America/Los_Angeles"
 # 域名列表
+SNI="www.microsoft.com"
 DOMAINLIST=("mass2000.duckdns.org" "dd2000.duckdns.org")
 
 # 证书源目录
