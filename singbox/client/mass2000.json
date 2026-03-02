@@ -17,7 +17,7 @@
       "type": "hysteria2",
       "tag": "hy2-out",
       "server": "mass2000.duckdns.org",
-      "server_port": 7444,
+      "server_port": 8443,
       "obfs": {
         "type": "salamander",
         "password": "cry_me_a_r1ver"
@@ -36,7 +36,7 @@
       "type": "tuic",
       "tag": "tuic-out",
       "server": "mass2000.duckdns.org",
-      "server_port": 7443,
+      "server_port": 443,
       "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
       "password": "xfCZwGoENVgtGhK1dKi7CQ",
       "congestion_control": "bbr",
