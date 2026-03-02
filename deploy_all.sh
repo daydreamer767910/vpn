@@ -91,9 +91,9 @@ echo "[INFO] Configuring UFW..."
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw allow 8443/tcp
-ufw allow 8443/udp
-ufw allow 8444/udp
+
+ufw allow 7443/udp
+ufw allow 7444/udp
 ufw allow 51820/udp
 if ! ufw status | grep -q "Status: active"; then
     ufw --force enable

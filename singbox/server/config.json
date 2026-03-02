@@ -17,7 +17,7 @@
       "type": "hysteria2",
       "tag": "hy2-in",
       "listen": "::",
-      "listen_port": 8444,
+      "listen_port": 444,
       "obfs": {
         "type": "salamander",
         "password": "cry_me_a_r1ver"
@@ -50,7 +50,7 @@
       "type": "tuic",
       "tag": "tuic-in",
       "listen": "::",
-      "listen_port": 8443,
+      "listen_port": 443,
       "users": [
         {
           "uuid": "e719535b-22ee-4976-8c0b-dd2db1f22e4c",
@@ -79,7 +79,7 @@
       "type": "vless",
       "tag": "vless-reality-in",
       "listen": "::",
-      "listen_port": 8443,
+      "listen_port": 443,
       "users": [
         {
           "uuid": "e719535b-22ee-4976-8c0b-dd2db1f22e4c",
@@ -101,7 +101,7 @@
           "enabled": true,
           "handshake": {
             "server": "www.microsoft.com",
-            "server_port": 8443
+            "server_port": 443
           },
           "private_key": "WH2m1ycr1QZJoRs2mIO5jme4HcBPHU_CC41cCtvx7FM",
           "short_id": [

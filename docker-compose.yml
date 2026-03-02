@@ -29,12 +29,12 @@ services:
     volumes:
       - ./singbox/server:/etc/singbox
     ports:
-      #VLESS / Reality
-      - '8443:8443/tcp'
+      #VLESS / Reality 
+      #- '7443:443/tcp' (走nginx 443反代)
       #TUIC
-      - '8443:8443/udp'
+      - '7443:443/udp'
       #Hysteria2
-      - '8444:8444/udp'
+      - '7444:444/udp'
     dns:
       - 1.1.1.1
       - 8.8.8.8
