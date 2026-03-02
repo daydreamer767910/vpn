@@ -15,8 +15,8 @@
     {
       "type": "hysteria2",
 	  "tag": "hy2-out",
-      "server": "oumass.duckdns.org",
-      "server_port": 8444,
+      "server": "wewewe.duckdns.org",
+      "server_port": 8443,
 	    "obfs": {
         "type": "salamander",
         "password": "cry_me_a_r1ver"
@@ -26,19 +26,19 @@
         "directory": "file:///oumass/auth"
       },
       "password": "mypassword",
-      "tls": { "enabled": true, "server_name": "oumass.duckdns.org" }
+      "tls": { "enabled": true, "server_name": "wewewe.duckdns.org" }
     },
     {
       "type": "tuic",
       "tag": "tuic-out",
-      "server": "oumass.duckdns.org",
-      "server_port": 8443,
+      "server": "wewewe.duckdns.org",
+      "server_port": 443,
       "uuid": "4c5d2a3a-34b5-4cbe-b120-8bfc92e4a5b9",
       "password": "oumass88",
       "congestion_control": "bbr",
       "tls": {
         "enabled": true,
-        "server_name": "oumass.duckdns.org",
+        "server_name": "mass2001.duckdns.org",
         "insecure": false,
         "alpn": ["h3"]
       }
@@ -46,8 +46,8 @@
 	{
       "type": "vless",
       "tag": "vless-out",
-      "server": "oumass.duckdns.org",
-      "server_port": 8443,
+      "server": "wewewewe.duckdns.org",
+      "server_port": 443,
       "uuid": "11111111-2222-3333-4444-555555555555",
       "flow": "xtls-rprx-vision",
       "tls": {
