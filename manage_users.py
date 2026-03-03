@@ -123,12 +123,6 @@ if args.auto_check_journal:
         with open(USERS_FILE, "w", encoding="utf-8") as f:
             json.dump(users, f, indent=2, ensure_ascii=False)
         print("[JOURNAL] 已同步用户到 users.json")
-        # 可选择重启容器
-        try:
-            subprocess.run(["docker", "restart", "singbox-server"], check=True)
-            ts_print("[JOURNAL] 已重启 singbox-server 容器")
-        except Exception as e:
-            ts_print(f"[WARN] 重启容器失败: {e}")
     else:
         ts_print("======nothing need to sync, done")
         exit(0)
@@ -217,6 +211,12 @@ if updated_any:
     with open(SERVER_CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(server_config, f, indent=2, ensure_ascii=False)
     print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
+    # 可选择重启容器
+    try:
+        subprocess.run(["docker", "restart", "singbox-server"], check=True)
+        ts_print("[JOURNAL] 已重启 singbox-server 容器")
+    except Exception as e:
+        ts_print(f"[WARN] 重启容器失败: {e}")
 else:
     print("没有匹配到需要更新的 inbound 用户。")
 
