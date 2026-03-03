@@ -22,7 +22,7 @@ args = parser.parse_args()
 # ------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SINGBOX_DIR = os.path.join(BASE_DIR, "singbox")
-JOURNAL_DIR = os.path.join(BASE_DIR, "journal", "public", "uploads", "admin")
+JOURNAL_DIR = os.path.join(BASE_DIR, "journal", "public", "uploads", "admin", "vpnusers")
 
 USERS_FILE = os.path.join(SINGBOX_DIR, "users.json")
 SERVER_CONFIG_FILE = os.path.join(SINGBOX_DIR, "server", "config.json")
