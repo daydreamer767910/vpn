@@ -13,6 +13,8 @@ parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本
 parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
                     help="指定需要更新的协议")
 parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
+parser.add_argument("--delete", nargs="*", help="删除指定用户名，空格或逗号分隔")
+parser.add_argument("--clear", action="store_true", help="清空所有用户")
 args = parser.parse_args()
 
 # ------------------------
@@ -26,7 +28,6 @@ USERS_FILE = os.path.join(SINGBOX_DIR, "users.json")
 SERVER_CONFIG_FILE = os.path.join(SINGBOX_DIR, "server", "config.json")
 CLIENT_TEMPLATE_FILE = os.path.join(SINGBOX_DIR, "client", "config.json")
 CLIENT_OUTPUT_DIR = JOURNAL_DIR
-
 CONFIG_SH = os.path.join(BASE_DIR, "config.sh")
 
 # 自动创建缺失目录
@@ -36,7 +37,14 @@ os.makedirs(os.path.dirname(CLIENT_TEMPLATE_FILE), exist_ok=True)
 os.makedirs(CLIENT_OUTPUT_DIR, exist_ok=True)
 
 # ------------------------
-# 从 config.sh 获取域名和 Reality SNI
+# ⚠️ 注意：
+# Reality TLS 使用的 server_name 固定为 config.sh 中 SNI
+# 必须与 Nginx stream map 配置里的 SNI 一致
+# 修改 SNI 时需同时修改：config.sh、manage_users.py、Nginx map
+# ------------------------
+
+# ------------------------
+# 读取 config.sh
 # ------------------------
 def parse_config_sh(sh_file):
     first_domain = None
@@ -70,7 +78,7 @@ def generate_password(length):
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
 # ------------------------
-# 加载或初始化用户列表
+# 加载用户列表
 # ------------------------
 if os.path.exists(USERS_FILE):
     with open(USERS_FILE, "r", encoding="utf-8") as f:
@@ -81,36 +89,52 @@ else:
 existing_names = {u["name"] for u in users}
 
 # ------------------------
-# 输入新用户
+# 删除或清空用户
 # ------------------------
-print("请输入用户名（可批量输入，逗号或空格分隔），空输入结束：")
-added_count = 0
-while True:
-    raw_input_names = input("用户名: ").strip()
-    if not raw_input_names:
-        break
-    names = [n.strip() for n in raw_input_names.replace(",", " ").split() if n.strip()]
-    for name in names:
-        if name in existing_names:
-            print(f"用户 {name} 已存在，跳过。")
-            continue
-        password = generate_password(args.password_length)
-        new_user = {
-            "name": name,
-            "uuid": str(uuid.uuid4()),
-            "password": password
-        }
-        users.append(new_user)
-        existing_names.add(name)
-        added_count += 1
-        print(f"已添加用户: {name}, 密码: {password}")
+if args.clear:
+    users = []
+    print("已清空所有用户")
+elif args.delete:
+    del_names = [n.strip() for name in args.delete for n in name.replace(",", " ").split()]
+    users = [u for u in users if u["name"] not in del_names]
+    print(f"已删除用户: {', '.join(del_names)}")
 
-if added_count > 0:
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
-    print(f"\n已更新用户清单 -> {USERS_FILE}, 新增 {added_count} 个用户")
-else:
-    print("没有新增用户。")
+# 写回用户文件
+with open(USERS_FILE, "w", encoding="utf-8") as f:
+    json.dump(users, f, indent=2, ensure_ascii=False)
+
+# ------------------------
+# 批量新增用户
+# ------------------------
+if not args.clear:
+    print("请输入用户名（可批量输入，逗号或空格分隔），空输入结束：")
+    added_count = 0
+    while True:
+        raw_input_names = input("用户名: ").strip()
+        if not raw_input_names:
+            break
+        names = [n.strip() for n in raw_input_names.replace(",", " ").split() if n.strip()]
+        for name in names:
+            if name in existing_names:
+                print(f"用户 {name} 已存在，跳过。")
+                continue
+            password = generate_password(args.password_length)
+            new_user = {
+                "name": name,
+                "uuid": str(uuid.uuid4()),
+                "password": password
+            }
+            users.append(new_user)
+            existing_names.add(name)
+            added_count += 1
+            print(f"已添加用户: {name}, 密码: {password}")
+
+    if added_count > 0:
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(users, f, indent=2, ensure_ascii=False)
+        print(f"\n已更新用户清单 -> {USERS_FILE}, 新增 {added_count} 个用户")
+    else:
+        print("没有新增用户。")
 
 # ------------------------
 # 更新服务端配置
@@ -122,6 +146,7 @@ except Exception as e:
     print(f"读取服务端配置失败: {e}")
     exit(1)
 
+# 备份
 shutil.copy(SERVER_CONFIG_FILE, SERVER_CONFIG_FILE + ".bak")
 print(f"已备份服务端配置 -> {SERVER_CONFIG_FILE}.bak")
 
@@ -150,7 +175,7 @@ else:
     print("没有匹配到需要更新的 inbound 用户。")
 
 # ------------------------
-# 生成客户端配置（智能处理 Reality / TLS）
+# 生成客户端配置（管理 + 发布）
 # ------------------------
 try:
     with open(CLIENT_TEMPLATE_FILE, "r", encoding="utf-8") as f:
@@ -200,7 +225,7 @@ for user in users:
     manage_file = os.path.join(client_manage_dir, f"{user['name']}-config.json")
     with open(manage_file, "w", encoding="utf-8") as f:
         json.dump(new_config, f, indent=2, ensure_ascii=False)
-    
+
     # 发布目录
     publish_file = os.path.join(CLIENT_OUTPUT_DIR, f"{user['name']}-config.json")
     shutil.copy(manage_file, publish_file)

@@ -7,8 +7,11 @@ USER_EMAIL="daydreamer767910@gmail.com"
 
 # 时区
 TIMEZONE="America/Los_Angeles"
-# 域名列表
+
+# 这个值必须和 Nginx stream map 配置里的 SNI 一致,除非不使用443反代
 SNI="www.microsoft.com"
+
+# 域名列表
 DOMAINLIST=("mass2000.duckdns.org" "dd2000.duckdns.org")
 
 # 证书源目录
