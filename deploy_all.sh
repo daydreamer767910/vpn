@@ -73,7 +73,21 @@ else
     echo "Warning: $SSH_KEY_SRC does not exist. Skipping SSH key setup."
 fi
 # -------------------------
+# 5. 设置环境变量
+# -------------------------
+# 生成 docker compose 使用的 UID/GID
+# -------------------------
+echo "[INFO] Generating .env for $DEPLOY_USER..."
 
+DEPLOY_UID=$(id -u "$DEPLOY_USER")
+DEPLOY_GID=$(id -g "$DEPLOY_USER")
+
+cat > /home/$DEPLOY_USER/.env <<EOF
+DEPLOY_UID=$DEPLOY_UID
+DEPLOY_GID=$DEPLOY_GID
+EOF
+
+chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.env
 # -------------------------
 # 移动仓库内容到用户目录
 # -------------------------
@@ -159,7 +173,26 @@ echo "[INFO] Setting crontab for smart_run.sh..."
 CRON_SCHEDULE="${CRON_SCHEDULE:-0 3 * * *}"
 CRON_JOB="$CRON_SCHEDULE /home/$DEPLOY_USER/smart_run.sh"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; echo '$CRON_JOB') | crontab -"
+# -------------------------
+# 配置定时轮询任务检查 journal/db/users/
+# -------------------------
+echo "[INFO] Setting crontab for user sync..."
+# 定时执行周期，例如每 5 分钟一次
+CRON_SCHEDULE="${USER_SYNC_CRON:-*/5 * * * *}"
+# manage_users.py 路径
+MANAGE_SCRIPT="/home/$DEPLOY_USER/manage_users.py"
+# 日志文件
+LOG_FILE="/home/$DEPLOY_USER/log/user_sync.log"
 
+# 添加到目标用户 crontab
+CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --auto_check_journal >> $LOG_FILE 2>&1"
+sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'manage_users.py'; echo '$CRON_JOB') | crontab -"
+
+echo "[INFO] User sync cron job configured:"
+echo "  Schedule: $CRON_SCHEDULE"
+echo "  Command : $MANAGE_SCRIPT --auto_check_journal"
+echo "  Log     : $LOG_FILE"
+# -------------------------
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "1. Switch to user: su - $DEPLOY_USER"

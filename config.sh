@@ -28,3 +28,6 @@ LOG_FILE="/home/$DEPLOY_USER/log/smart_run.log"
 
 # 定期检查证书
 CRON_SCHEDULE="0 3 * * *"
+
+# 定期检查用户变动
+USER_SYNC_CRON="*/1 * * * *"

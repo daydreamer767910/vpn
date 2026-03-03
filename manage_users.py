@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+manage_users.py - Sing-box 用户管理脚本（跨平台 UTF-8，支持 Reality SNI）
+"""
+
 import json
 import os
 import shutil
@@ -5,16 +11,19 @@ import uuid
 import random
 import string
 import argparse
+import subprocess
 
 # ------------------------
 # 命令行参数
 # ------------------------
-parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本（跨平台 UTF-8，支持 Reality SNI）")
+parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本")
 parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
                     help="指定需要更新的协议")
 parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
 parser.add_argument("--delete", nargs="*", help="删除指定用户名，空格或逗号分隔")
 parser.add_argument("--clear", action="store_true", help="清空所有用户")
+parser.add_argument("--auto_check_journal", action="store_true",
+                    help="检查 journal/db/users/ 是否有新增/删除用户，并同步")
 args = parser.parse_args()
 
 # ------------------------
@@ -22,26 +31,18 @@ args = parser.parse_args()
 # ------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SINGBOX_DIR = os.path.join(BASE_DIR, "singbox")
-JOURNAL_DIR = os.path.join(BASE_DIR, "journal", "public", "uploads", "admin", "vpnusers")
+JOURNAL_DB_USERS = os.path.join(BASE_DIR, "journal", "db", "users")
 
 USERS_FILE = os.path.join(SINGBOX_DIR, "users.json")
 SERVER_CONFIG_FILE = os.path.join(SINGBOX_DIR, "server", "config.json")
 CLIENT_TEMPLATE_FILE = os.path.join(SINGBOX_DIR, "client", "config.json")
-CLIENT_OUTPUT_DIR = JOURNAL_DIR
 CONFIG_SH = os.path.join(BASE_DIR, "config.sh")
 
 # 自动创建缺失目录
 os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
 os.makedirs(os.path.dirname(SERVER_CONFIG_FILE), exist_ok=True)
 os.makedirs(os.path.dirname(CLIENT_TEMPLATE_FILE), exist_ok=True)
-os.makedirs(CLIENT_OUTPUT_DIR, exist_ok=True)
-
-# ------------------------
-# ⚠️ 注意：
-# Reality TLS 使用的 server_name 固定为 config.sh 中 SNI
-# 必须与 Nginx stream map 配置里的 SNI 一致
-# 修改 SNI 时需同时修改：config.sh、manage_users.py、Nginx map
-# ------------------------
+os.makedirs(JOURNAL_DB_USERS, exist_ok=True)
 
 # ------------------------
 # 读取 config.sh
@@ -89,14 +90,52 @@ else:
 existing_names = {u["name"] for u in users}
 
 # ------------------------
+# 轮询 journal/db/users/ 检查用户变动
+# ------------------------
+if args.auto_check_journal:
+    journal_users = {f[:-5] for f in os.listdir(JOURNAL_DB_USERS) if f.endswith(".json")}
+    current_users = existing_names
+
+    to_add = journal_users - current_users
+    to_del = current_users - journal_users
+
+    if to_add:
+        print(f"[JOURNAL] 发现新增用户: {', '.join(to_add)}")
+        for name in to_add:
+            password = generate_password(args.password_length)
+            new_user = {
+                "name": name,
+                "uuid": str(uuid.uuid4()),
+                "password": password
+            }
+            users.append(new_user)
+            existing_names.add(name)
+    if to_del:
+        print(f"[JOURNAL] 发现删除用户: {', '.join(to_del)}")
+        users = [u for u in users if u["name"] not in to_del]
+        existing_names -= to_del
+    if to_add or to_del:
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(users, f, indent=2, ensure_ascii=False)
+        print("[JOURNAL] 已同步用户到 users.json")
+        # 可选择重启容器
+        try:
+            subprocess.run(["docker", "restart", "singbox-server"], check=True)
+            print("[JOURNAL] 已重启 singbox-server 容器")
+        except Exception as e:
+            print(f"[WARN] 重启容器失败: {e}")
+
+# ------------------------
 # 删除或清空用户
 # ------------------------
 if args.clear:
     users = []
+    existing_names = set()
     print("已清空所有用户")
 elif args.delete:
     del_names = [n.strip() for name in args.delete for n in name.replace(",", " ").split()]
     users = [u for u in users if u["name"] not in del_names]
+    existing_names -= set(del_names)
     print(f"已删除用户: {', '.join(del_names)}")
 
 # 写回用户文件
@@ -186,7 +225,6 @@ except Exception as e:
 
 client_manage_dir = os.path.dirname(CLIENT_TEMPLATE_FILE)
 os.makedirs(client_manage_dir, exist_ok=True)
-os.makedirs(CLIENT_OUTPUT_DIR, exist_ok=True)
 
 for user in users:
     new_config = json.loads(json.dumps(client_template))
@@ -207,7 +245,7 @@ for user in users:
             outbound["password"] = user["password"]
         updated = True
 
-        # ---------- 替换 server 和 tls.server_name ----------
+        # 替换 server 和 tls.server_name
         if first_domain:
             if "server" in outbound:
                 outbound["server"] = first_domain
@@ -226,8 +264,10 @@ for user in users:
     with open(manage_file, "w", encoding="utf-8") as f:
         json.dump(new_config, f, indent=2, ensure_ascii=False)
 
-    # 发布目录
-    publish_file = os.path.join(CLIENT_OUTPUT_DIR, f"{user['name']}-config.json")
+    # 发布目录（每个用户单独目录）
+    user_publish_dir = os.path.join(BASE_DIR, "journal", "public", "uploads", user["name"])
+    os.makedirs(user_publish_dir, exist_ok=True)
+    publish_file = os.path.join(user_publish_dir, f"{user['name']}-config.json")
     shutil.copy(manage_file, publish_file)
     print(f"已生成客户端配置 -> 管理: {manage_file}, 发布: {publish_file}")
 

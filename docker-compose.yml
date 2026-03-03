@@ -48,6 +48,7 @@ services:
       - BIND_ADDRESS=0.0.0.0:5000
       - JWT_SECRET=12345678
     #image: daydreamer767910/journal:latest
+    user: "${DEPLOY_UID}:${DEPLOY_GID}"
     build: ./journal
     container_name: journal
     networks:
