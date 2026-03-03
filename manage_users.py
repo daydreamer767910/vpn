@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本
 parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
                     help="指定需要更新的协议")
 parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
+parser.add_argument("--add", action="store_true", help="增加用户")
 parser.add_argument("--delete", nargs="*", help="删除指定用户名，空格或逗号分隔")
 parser.add_argument("--clear", action="store_true", help="清空所有用户")
 parser.add_argument("--auto_check_journal", action="store_true",
@@ -145,7 +146,7 @@ with open(USERS_FILE, "w", encoding="utf-8") as f:
 # ------------------------
 # 批量新增用户
 # ------------------------
-if not args.clear:
+if args.add:
     print("请输入用户名（可批量输入，逗号或空格分隔），空输入结束：")
     added_count = 0
     while True:
