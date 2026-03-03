@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./journal/db:/app/db
-      - ./journal/public:/app/public
+      - ./journal/db:/app/public
       - ./journal/logs:/app/logs
 
   wg-easy:

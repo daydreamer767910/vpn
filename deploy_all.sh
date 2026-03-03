@@ -182,7 +182,7 @@ CRON_SCHEDULE="${USER_SYNC_CRON:-*/5 * * * *}"
 # manage_users.py 路径
 MANAGE_SCRIPT="/home/$DEPLOY_USER/manage_users.py"
 # 日志文件
-LOG_FILE="/home/$DEPLOY_USER/log/user_sync.log"
+LOG_FILE="/home/$DEPLOY_USER/user_sync.log"
 
 # 添加到目标用户 crontab
 CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --auto_check_journal >> $LOG_FILE 2>&1"
