@@ -12,7 +12,7 @@ import random
 import string
 import argparse
 import subprocess
-
+import datetime
 # ------------------------
 # 命令行参数
 # ------------------------
@@ -44,6 +44,10 @@ os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
 os.makedirs(os.path.dirname(SERVER_CONFIG_FILE), exist_ok=True)
 os.makedirs(os.path.dirname(CLIENT_TEMPLATE_FILE), exist_ok=True)
 os.makedirs(JOURNAL_DB_USERS, exist_ok=True)
+
+def ts_print(*args, **kwargs):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{now}]", *args, **kwargs)
 
 # ------------------------
 # 读取 config.sh
@@ -99,7 +103,7 @@ if args.auto_check_journal:
 
     to_add = journal_users - current_users
     to_del = current_users - journal_users
-
+    ts_print("======starting sync users...")
     if to_add:
         print(f"[JOURNAL] 发现新增用户: {', '.join(to_add)}")
         for name in to_add:
@@ -122,10 +126,12 @@ if args.auto_check_journal:
         # 可选择重启容器
         try:
             subprocess.run(["docker", "restart", "singbox-server"], check=True)
-            print("[JOURNAL] 已重启 singbox-server 容器")
+            ts_print("[JOURNAL] 已重启 singbox-server 容器")
         except Exception as e:
-            print(f"[WARN] 重启容器失败: {e}")
-
+            ts_print(f"[WARN] 重启容器失败: {e}")
+    else:
+        ts_print("======nothing need to sync, done")
+        exit(0)
 # ------------------------
 # 删除或清空用户
 # ------------------------
