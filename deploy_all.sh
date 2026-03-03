@@ -93,7 +93,13 @@ chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.env
 # -------------------------
 echo "[INFO] Copying repository contents to /home/$DEPLOY_USER..."
 
-# 仓库里根目录是 vpn，移动其内容而不是整个 vpn 文件夹
+LOG_DIR="$(dirname "$LOG_FILE")"
+
+# 确保日志目录存在
+mkdir -p "$LOG_DIR"
+# 确保docker的volumes存在
+mkdir -p ./journal/public
+mkdir -p ./journal/logs
 #cp -a . /home/$DEPLOY_USER/
 rsync -a --exclude='deploy_all.sh' --exclude='.git' --exclude='*.md' ./ /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
@@ -182,16 +188,16 @@ CRON_SCHEDULE="${USER_SYNC_CRON:-*/5 * * * *}"
 # manage_users.py 路径
 MANAGE_SCRIPT="/home/$DEPLOY_USER/manage_users.py"
 # 日志文件
-LOG_FILE="/home/$DEPLOY_USER/user_sync.log"
+SYNCLOG_FILE="$LOG_DIR/user_sync.log"
 
 # 添加到目标用户 crontab
-CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --auto_check_journal >> $LOG_FILE 2>&1"
+CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --auto_check_journal >> $SYNCLOG_FILE 2>&1"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'manage_users.py'; echo '$CRON_JOB') | crontab -"
 
 echo "[INFO] User sync cron job configured:"
 echo "  Schedule: $CRON_SCHEDULE"
 echo "  Command : $MANAGE_SCRIPT --auto_check_journal"
-echo "  Log     : $LOG_FILE"
+echo "  Log     : $SYNCLOG_FILE"
 # -------------------------
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
