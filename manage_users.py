@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 manage_users.py - Sing-box 用户管理脚本（跨平台 UTF-8，支持 Reality SNI）
+优化版：函数化、去重复、增强可读性与扩展性
+发布目录只生成新增/更新用户
 """
 
 import json
@@ -13,6 +15,16 @@ import string
 import argparse
 import subprocess
 import datetime
+import re
+import copy
+import logging
+from pathlib import Path
+
+# ------------------------
+# 配置日志
+# ------------------------
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
 # ------------------------
 # 命令行参数
 # ------------------------
@@ -20,7 +32,7 @@ parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本
 parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
                     help="指定需要更新的协议")
 parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
-parser.add_argument("--add", action="store_true", help="增加用户")
+parser.add_argument("--add", nargs="*", help="新增用户，空格或逗号分隔")
 parser.add_argument("--delete", nargs="*", help="删除指定用户名，空格或逗号分隔")
 parser.add_argument("--clear", action="store_true", help="清空所有用户")
 parser.add_argument("--auto_check_journal", action="store_true",
@@ -30,252 +42,241 @@ args = parser.parse_args()
 # ------------------------
 # 路径设置
 # ------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SINGBOX_DIR = os.path.join(BASE_DIR, "singbox")
-JOURNAL_DB_USERS = os.path.join(BASE_DIR, "journal", "db", "users")
+BASE_DIR = Path(__file__).resolve().parent
+SINGBOX_DIR = BASE_DIR / "singbox"
+JOURNAL_DB_USERS = BASE_DIR / "journal" / "db" / "users"
 
-USERS_FILE = os.path.join(SINGBOX_DIR, "users.json")
-SERVER_CONFIG_FILE = os.path.join(SINGBOX_DIR, "server", "config.json")
-CLIENT_TEMPLATE_FILE = os.path.join(SINGBOX_DIR, "client", "config.json")
-CONFIG_SH = os.path.join(BASE_DIR, "config.sh")
+USERS_FILE = SINGBOX_DIR / "users.json"
+SERVER_CONFIG_FILE = SINGBOX_DIR / "server" / "config.json"
+CLIENT_TEMPLATE_FILE = SINGBOX_DIR / "client" / "config.json"
+CONFIG_SH = BASE_DIR / "config.sh"
 
 # 自动创建缺失目录
-os.makedirs(os.path.dirname(USERS_FILE), exist_ok=True)
-os.makedirs(os.path.dirname(SERVER_CONFIG_FILE), exist_ok=True)
-os.makedirs(os.path.dirname(CLIENT_TEMPLATE_FILE), exist_ok=True)
-os.makedirs(JOURNAL_DB_USERS, exist_ok=True)
-
-def ts_print(*args, **kwargs):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now}]", *args, **kwargs)
+for path in [USERS_FILE, SERVER_CONFIG_FILE, CLIENT_TEMPLATE_FILE]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+JOURNAL_DB_USERS.mkdir(parents=True, exist_ok=True)
 
 # ------------------------
-# 读取 config.sh
+# 工具函数
 # ------------------------
-def parse_config_sh(sh_file):
-    first_domain = None
-    reality_sni = None
-    if os.path.exists(sh_file):
-        with open(sh_file, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("DOMAINLIST"):
-                    start = line.find('(')
-                    end = line.find(')')
-                    if start != -1 and end != -1:
-                        items = line[start+1:end].replace('"', '').split()
-                        if items:
-                            first_domain = items[0]
-                elif line.startswith("SNI="):
-                    reality_sni = line.split("=",1)[1].strip().strip('"')
-    return first_domain, reality_sni
+def ts_print(msg):
+    logging.info(msg)
 
-first_domain, reality_sni = parse_config_sh(CONFIG_SH)
-if not first_domain:
-    print("⚠️ config.sh 未找到 DOMAINLIST 或为空，客户端 server 和 TLS server_name 不会修改。")
-if not reality_sni:
-    print("⚠️ config.sh 未找到 SNI，Reality 模式 server_name 不会修改。")
+def load_json(file_path, default=None):
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default if default is not None else []
 
-# ------------------------
-# 随机密码生成
-# ------------------------
+def save_json(file_path, data):
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
 def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
-# ------------------------
-# 加载用户列表
-# ------------------------
-if os.path.exists(USERS_FILE):
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        users = json.load(f)
-else:
-    users = []
+def parse_config_sh(sh_file):
+    first_domain = None
+    reality_sni = None
+    if sh_file.exists():
+        for line in sh_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("DOMAINLIST"):
+                m = re.search(r'\((.*?)\)', line)
+                if m:
+                    items = m.group(1).replace('"', '').split()
+                    if items:
+                        first_domain = items[0]
+            elif line.startswith("SNI="):
+                reality_sni = line.split("=",1)[1].strip().strip('"')
+    if not first_domain:
+        ts_print("⚠️ config.sh 未找到 DOMAINLIST 或为空，客户端 server 和 TLS server_name 不会修改。")
+    if not reality_sni:
+        ts_print("⚠️ config.sh 未找到 SNI，Reality 模式 server_name 不会修改。")
+    return first_domain, reality_sni
 
-existing_names = {u["name"] for u in users}
+def make_user_entry(protocol, user):
+    protocol = protocol.lower()
+    if protocol == "tuic":
+        return {"name": user["name"], "uuid": user["uuid"], "password": user["password"]}
+    elif protocol == "vless":
+        return {"name": user["name"], "uuid": user["uuid"], "flow": "xtls-rprx-vision"}
+    elif protocol == "hysteria2":
+        return {"name": user["name"], "password": user["password"]}
+    elif protocol == "shadowsocks":
+        return {"method": "2022-blake3-aes-128-gcm", "password": user["password"]}
+    return {}
+
+def restart_container(name):
+    try:
+        subprocess.run(["docker", "restart", name], check=True)
+        ts_print(f"已重启容器 {name}")
+    except subprocess.CalledProcessError as e:
+        ts_print(f"[WARN] 重启容器失败: {e}")
+
+def split_user_input(raw_input):
+    return [n.strip() for n in re.split(r'[,\s;]+', raw_input) if n.strip()]
 
 # ------------------------
-# 轮询 journal/db/users/ 检查用户变动
+# 主逻辑
 # ------------------------
-if args.auto_check_journal:
-    journal_users = {f[:-5] for f in os.listdir(JOURNAL_DB_USERS) if f.endswith(".json")}
-    current_users = existing_names
-
-    to_add = journal_users - current_users
-    to_del = current_users - journal_users
-    ts_print("======starting sync users...")
-    if to_add:
-        print(f"[JOURNAL] 发现新增用户: {', '.join(to_add)}")
-        for name in to_add:
-            password = generate_password(args.password_length)
-            new_user = {
-                "name": name,
-                "uuid": str(uuid.uuid4()),
-                "password": password
-            }
-            users.append(new_user)
-            existing_names.add(name)
-    if to_del:
-        print(f"[JOURNAL] 发现删除用户: {', '.join(to_del)}")
-        users = [u for u in users if u["name"] not in to_del]
-        existing_names -= to_del
-    if to_add or to_del:
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(users, f, indent=2, ensure_ascii=False)
-        print("[JOURNAL] 已同步用户到 users.json")
+def main():
+    first_domain, reality_sni = parse_config_sh(CONFIG_SH)
+    
+    # 读取用户列表
+    users = load_json(USERS_FILE, [])
+    # 打印加载信息
+    if users:
+        ts_print(f"已加载 {len(users)} 个用户: {', '.join(u['name'] for u in users)}")
     else:
-        ts_print("======nothing need to sync, done")
-        exit(0)
-# ------------------------
-# 删除或清空用户
-# ------------------------
-if args.clear:
-    users = []
-    existing_names = set()
-    print("已清空所有用户")
-elif args.delete:
-    del_names = [n.strip() for name in args.delete for n in name.replace(",", " ").split()]
-    users = [u for u in users if u["name"] not in del_names]
-    existing_names -= set(del_names)
-    print(f"已删除用户: {', '.join(del_names)}")
+        ts_print("当前用户列表为空")
+    existing_names = {u["name"] for u in users}
 
-# 写回用户文件
-with open(USERS_FILE, "w", encoding="utf-8") as f:
-    json.dump(users, f, indent=2, ensure_ascii=False)
+    # ------------------------
+    # 记录新增或更新用户
+    # ------------------------
+    updated_users = set()
 
-# ------------------------
-# 批量新增用户
-# ------------------------
-if args.add:
-    print("请输入用户名（可批量输入，逗号或空格分隔），空输入结束：")
-    added_count = 0
-    while True:
-        raw_input_names = input("用户名: ").strip()
-        if not raw_input_names:
-            break
-        names = [n.strip() for n in raw_input_names.replace(",", " ").split() if n.strip()]
+    # 轮询 journal/db/users
+    if args.auto_check_journal:
+        journal_users = {f.stem for f in JOURNAL_DB_USERS.glob("*.json")}
+        current_users = existing_names
+        to_add = journal_users - current_users
+        #to_del = current_users - journal_users
+        ts_print("======starting sync users...")
+        if to_add:
+            ts_print(f"[JOURNAL] 发现新增用户: {', '.join(to_add)}")
+            for name in to_add:
+                password = generate_password(args.password_length)
+                users.append({"name": name, "uuid": str(uuid.uuid4()), "password": password})
+                existing_names.add(name)
+                updated_users.add(name)
+        #if to_del:
+            #ts_print(f"[JOURNAL] 发现删除用户: {', '.join(to_del)}")
+            #users = [u for u in users if u["name"] not in to_del]
+            #existing_names -= to_del
+        #if to_add or to_del:
+            save_json(USERS_FILE, users)
+            ts_print("[JOURNAL] 已同步用户到 users.json")
+        else:
+            ts_print("======nothing need to sync, done")
+            return
+    # 删除或清空用户
+    elif args.clear:
+        users = []
+        existing_names = set()
+        ts_print("已清空所有用户")
+        save_json(USERS_FILE, users)
+    elif args.delete:
+        del_names = {n.strip() for name in args.delete for n in split_user_input(name)}
+        users = [u for u in users if u["name"] not in del_names]
+        existing_names -= del_names
+        ts_print(f"已删除用户: {', '.join(del_names)}")
+        save_json(USERS_FILE, users)
+    # 批量新增用户
+    elif args.add:
+        # 把参数解析成用户名列表
+        names = []
+        for name_str in args.add:
+            names.extend(split_user_input(name_str))
+        
+        added_count = 0
         for name in names:
             if name in existing_names:
-                print(f"用户 {name} 已存在，跳过。")
+                ts_print(f"用户 {name} 已存在，跳过。")
                 continue
             password = generate_password(args.password_length)
-            new_user = {
-                "name": name,
-                "uuid": str(uuid.uuid4()),
-                "password": password
-            }
+            new_user = {"name": name, "uuid": str(uuid.uuid4()), "password": password}
             users.append(new_user)
             existing_names.add(name)
+            updated_users.add(name)
             added_count += 1
-            print(f"已添加用户: {name}, 密码: {password}")
+            ts_print(f"已添加用户: {name}, 密码: {password}")
 
-    if added_count > 0:
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(users, f, indent=2, ensure_ascii=False)
-        print(f"\n已更新用户清单 -> {USERS_FILE}, 新增 {added_count} 个用户")
-    else:
-        print("没有新增用户。")
+        if added_count > 0:
+            save_json(USERS_FILE, users)
+            ts_print(f"已更新用户清单 -> {USERS_FILE}, 新增 {added_count} 个用户")
+        else:
+            ts_print("没有新增用户。")
+            return
 
-# ------------------------
-# 更新服务端配置
-# ------------------------
-try:
-    with open(SERVER_CONFIG_FILE, "r", encoding="utf-8") as f:
-        server_config = json.load(f)
-except Exception as e:
-    print(f"读取服务端配置失败: {e}")
-    exit(1)
+    # 更新服务端配置
+    server_config = load_json(SERVER_CONFIG_FILE)
+    if not server_config:
+        ts_print(f"读取服务端配置失败: {SERVER_CONFIG_FILE}")
+        return
+    shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE) + ".bak")
+    ts_print(f"已备份服务端配置 -> {SERVER_CONFIG_FILE}.bak")
 
-# 备份
-shutil.copy(SERVER_CONFIG_FILE, SERVER_CONFIG_FILE + ".bak")
-print(f"已备份服务端配置 -> {SERVER_CONFIG_FILE}.bak")
-
-updated_any = False
-for inbound in server_config.get("inbounds", []):
-    protocol = inbound.get("type", "").lower()
-    if protocol not in [p.lower() for p in args.protocols]:
-        continue
-    if protocol in ["tuic", "vless", "hysteria2", "shadowsocks"]:
-        if protocol == "tuic":
-            inbound["users"] = [{"name": u["name"], "uuid": u["uuid"], "password": u["password"]} for u in users]
-        elif protocol == "vless":
-            inbound["users"] = [{"name": u["name"], "uuid": u["uuid"], "flow": "xtls-rprx-vision"} for u in users]
-        elif protocol == "hysteria2":
-            inbound["users"] = [{"name": u["name"], "password": u["password"]} for u in users]
-        elif protocol == "shadowsocks":
-            inbound["users"] = [{"method": "2022-blake3-aes-128-gcm", "password": u["password"]} for u in users]
-        updated_any = True
-        print(f"更新 {protocol} 用户: {', '.join(u['name'] for u in users)}")
-
-if updated_any:
-    with open(SERVER_CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(server_config, f, indent=2, ensure_ascii=False)
-    print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
-    # 可选择重启容器
-    try:
-        subprocess.run(["docker", "restart", "singbox-server"], check=True)
-        ts_print("[JOURNAL] 已重启 singbox-server 容器")
-    except Exception as e:
-        ts_print(f"[WARN] 重启容器失败: {e}")
-else:
-    print("没有匹配到需要更新的 inbound 用户。")
-
-# ------------------------
-# 生成客户端配置（管理 + 发布）
-# ------------------------
-try:
-    with open(CLIENT_TEMPLATE_FILE, "r", encoding="utf-8") as f:
-        client_template = json.load(f)
-except Exception as e:
-    print(f"读取客户端模板失败: {e}")
-    exit(1)
-
-client_manage_dir = os.path.dirname(CLIENT_TEMPLATE_FILE)
-os.makedirs(client_manage_dir, exist_ok=True)
-
-for user in users:
-    new_config = json.loads(json.dumps(client_template))
-    updated = False
-    for outbound in new_config.get("outbounds", []):
-        protocol = outbound.get("type", "").lower()
+    updated_any = False
+    for inbound in server_config.get("inbounds", []):
+        protocol = inbound.get("type", "").lower()
         if protocol not in [p.lower() for p in args.protocols]:
             continue
-        # 更新用户字段
-        if protocol == "tuic":
-            outbound["uuid"] = user["uuid"]
-            outbound["password"] = user["password"]
-        elif protocol == "vless":
-            outbound["uuid"] = user["uuid"]
-        elif protocol == "hysteria2":
-            outbound["password"] = user["password"]
-        elif protocol == "shadowsocks":
-            outbound["password"] = user["password"]
-        updated = True
+        inbound["users"] = [make_user_entry(protocol, u) for u in users]
+        updated_any = True
+        ts_print(f"更新 {protocol} 用户: {', '.join(u['name'] for u in users)}")
 
-        # 替换 server 和 tls.server_name
-        if first_domain:
-            if "server" in outbound:
-                outbound["server"] = first_domain
-            if "tls" in outbound and isinstance(outbound["tls"], dict):
-                if "reality" in outbound["tls"]:
-                    if reality_sni:
+    if updated_any:
+        save_json(SERVER_CONFIG_FILE, server_config)
+        ts_print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
+        restart_container("singbox-server")
+    else:
+        ts_print("没有匹配到需要更新的 inbound 用户。")
+
+    # 生成客户端配置
+    client_template = load_json(CLIENT_TEMPLATE_FILE)
+    if not client_template:
+        ts_print(f"读取客户端模板失败: {CLIENT_TEMPLATE_FILE}")
+        return
+    client_manage_dir = CLIENT_TEMPLATE_FILE.parent / "users"
+    client_manage_dir.mkdir(parents=True, exist_ok=True)
+
+    for user in users:
+        # 只生成新增/更新用户
+        if user["name"] not in updated_users:
+            continue
+        # 管理目录始终生成
+        new_config = copy.deepcopy(client_template)
+        updated = False
+        for outbound in new_config.get("outbounds", []):
+            protocol = outbound.get("type", "").lower()
+            if protocol not in [p.lower() for p in args.protocols]:
+                continue
+            # 更新用户字段
+            if protocol == "tuic":
+                outbound["uuid"] = user["uuid"]
+                outbound["password"] = user["password"]
+            elif protocol == "vless":
+                outbound["uuid"] = user["uuid"]
+            elif protocol in ["hysteria2", "shadowsocks"]:
+                outbound["password"] = user["password"]
+            updated = True
+
+            # 替换 server 和 tls.server_name
+            if first_domain:
+                if "server" in outbound:
+                    outbound["server"] = first_domain
+                if "tls" in outbound and isinstance(outbound["tls"], dict):
+                    if "reality" in outbound["tls"] and reality_sni:
                         outbound["tls"]["server_name"] = reality_sni
-                else:
-                    outbound["tls"]["server_name"] = first_domain
+                    else:
+                        outbound["tls"]["server_name"] = first_domain
 
-    if not updated:
-        print(f"用户 {user['name']} 未匹配任何 outbound 协议，请检查模板和 --protocols 参数。")
+        # 管理目录
+        manage_file = client_manage_dir / f"{first_domain}-{user['name']}-config.json"
+        save_json(manage_file, new_config)
+        ts_print(f"已生成客户端配置 -> : {manage_file}")
+        
+        user_publish_dir = BASE_DIR / "journal" / "public" / "uploads" / user["name"]
+        user_publish_dir.mkdir(parents=True, exist_ok=True)
+        publish_file = user_publish_dir / f"{first_domain}-{user['name']}-config.json"
+        shutil.copy(manage_file, publish_file)
+        ts_print(f"已发布客户端配置: {publish_file}")
 
-    # 管理目录
-    manage_file = os.path.join(client_manage_dir, f"{user['name']}-config.json")
-    with open(manage_file, "w", encoding="utf-8") as f:
-        json.dump(new_config, f, indent=2, ensure_ascii=False)
+    ts_print("所有操作完成！")
 
-    # 发布目录（每个用户单独目录）
-    user_publish_dir = os.path.join(BASE_DIR, "journal", "public", "uploads", user["name"])
-    os.makedirs(user_publish_dir, exist_ok=True)
-    publish_file = os.path.join(user_publish_dir, f"{user['name']}-config.json")
-    shutil.copy(manage_file, publish_file)
-    print(f"已生成客户端配置 -> 管理: {manage_file}, 发布: {publish_file}")
-
-print("\n所有操作完成！")
+if __name__ == "__main__":
+    main()
