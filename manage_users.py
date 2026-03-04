@@ -266,13 +266,13 @@ def main():
                         outbound["tls"]["server_name"] = first_domain
 
         # 管理目录
-        manage_file = client_manage_dir / f"{first_domain}-{user['name']}-config.json"
+        manage_file = client_manage_dir / f"{first_domain}-{user['name']}.json"
         save_json(manage_file, new_config)
         ts_print(f"已生成客户端配置 -> : {manage_file}")
         
         user_publish_dir = BASE_DIR / "journal" / "public" / "uploads" / user["name"]
         user_publish_dir.mkdir(parents=True, exist_ok=True)
-        publish_file = user_publish_dir / f"{first_domain}-{user['name']}-config.json"
+        publish_file = user_publish_dir / f"{first_domain}-{user['name']}.json"
         shutil.copy(manage_file, publish_file)
         ts_print(f"已发布客户端配置: {publish_file}")
 
