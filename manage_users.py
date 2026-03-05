@@ -88,24 +88,49 @@ def create_user(name, password_length):
         "subscription_token": uuid.uuid4().hex
     }
 
-def parse_config_sh(sh_file):
+def parse_config_sh(sh_file: Path):
+    """
+    通过 bash source config.sh 获取变量
+    完全按 shell 逻辑解析
+    """
+
+    if not sh_file.exists():
+        print("config.sh 不存在")
+        return None, None
+
+    cmd = f'''
+    source "{sh_file}"
+
+    if [ -n "${{DOMAINLIST[0]}}" ]; then
+        echo FIRST_DOMAIN="${{DOMAINLIST[0]}}"
+    fi
+
+    if [ -n "$SNI" ]; then
+        echo REALITY_SNI="$SNI"
+    fi
+    '''
+
+    result = subprocess.run(
+        ["bash", "-c", cmd],
+        capture_output=True,
+        text=True
+    )
+
     first_domain = None
     reality_sni = None
-    if sh_file.exists():
-        for line in sh_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line.startswith("DOMAINLIST"):
-                m = re.search(r'\((.*?)\)', line)
-                if m:
-                    items = m.group(1).replace('"', '').split()
-                    if items:
-                        first_domain = items[0]
-            elif line.startswith("SNI="):
-                reality_sni = line.split("=",1)[1].strip().strip('"')
+
+    for line in result.stdout.splitlines():
+        if line.startswith("FIRST_DOMAIN="):
+            first_domain = line.split("=", 1)[1].strip()
+        elif line.startswith("REALITY_SNI="):
+            reality_sni = line.split("=", 1)[1].strip()
+
     if not first_domain:
-        ts_print("⚠️ config.sh 未找到 DOMAINLIST 或为空，客户端 server 和 TLS server_name 不会修改。")
+        print("⚠️ 没找到 DOMAINLIST[0]")
+
     if not reality_sni:
-        ts_print("⚠️ config.sh 未找到 SNI，Reality 模式 server_name 不会修改。")
+        print("⚠️ 没找到 SNI")
+
     return first_domain, reality_sni
 
 def make_user_entry(protocol, user):
