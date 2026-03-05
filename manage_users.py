@@ -280,9 +280,10 @@ def main():
         ts_print(f"已发布客户端配置: {publish_file}")
         # 订阅号文件
         if "subscription_token" in user:
-            sub_file = user_publish_dir / f"{first_domain}-{user['name']}.sub"
-            sub_file.write_text(user["subscription_token"], encoding="utf-8")
-            ts_print(f"已发布订阅号: {sub_file}")
+            sub_url = f"https://{first_domain}/sub/{user['subscription_token']}"
+            sub_file = user_publish_dir / f"{first_domain}-{user['name']}.txt"
+            sub_file.write_text(sub_url, encoding="utf-8")
+            ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}")
 
     ts_print("所有操作完成！")
 
