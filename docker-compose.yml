@@ -62,6 +62,19 @@ services:
       - ./journal/public:/app/public
       - ./journal/logs:/app/logs
 
+  flask-server:
+    build: ./flask
+    container_name: flask-server
+    networks:
+      lan:
+         ipv4_address: 172.19.0.2
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./journal/public:/app/public:ro
+      - ./singbox:/app/singbox:ro
+    restart: unless-stopped
+
   wg-easy:
     environment:
       # Change Language:
