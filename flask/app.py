@@ -44,4 +44,4 @@ def download_by_token(token):
     return send_file(files[0], mimetype="application/json")
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, threaded=True)
