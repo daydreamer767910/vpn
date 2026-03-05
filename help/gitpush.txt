@@ -56,5 +56,8 @@ git clone https://github.com/daydreamer767910/vpn.git
 ```bash
 git config --global http.proxy http://127.0.0.1:3067
 git config --global https.proxy http://127.0.0.1:3067
+
+git config --global --unset http.proxy
+git config --global --unset https.proxy
 ```
 
