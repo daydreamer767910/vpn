@@ -77,6 +77,17 @@ def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
+def create_user(name, password_length):
+    return {
+        "name": name,
+        "uuid": str(uuid.uuid4()),
+        "password": generate_password(password_length),
+        "created_at": datetime.datetime.utcnow().isoformat(),
+        "enabled": True,
+        "traffic_limit": None,
+        "subscription_token": uuid.uuid4().hex
+    }
+
 def parse_config_sh(sh_file):
     first_domain = None
     reality_sni = None
@@ -127,11 +138,7 @@ def main():
     
     # 读取用户列表
     users = load_json(USERS_FILE, [])
-    # 打印加载信息
-    if users:
-        ts_print(f"已加载 {len(users)} 个用户: {', '.join(u['name'] for u in users)}")
-    else:
-        ts_print("当前用户列表为空")
+
     existing_names = {u["name"] for u in users}
 
     # ------------------------
@@ -145,14 +152,15 @@ def main():
         current_users = existing_names
         to_add = journal_users - current_users
         #to_del = current_users - journal_users
-        ts_print("======starting sync users...")
+
         if to_add:
             ts_print(f"[JOURNAL] 发现新增用户: {', '.join(to_add)}")
             for name in to_add:
-                password = generate_password(args.password_length)
-                users.append({"name": name, "uuid": str(uuid.uuid4()), "password": password})
+                new_user = create_user(name, args.password_length)
+                users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
+                ts_print(f"已添加用户: {name}, 订阅号: {new_user['subscription_token']}")
         #if to_del:
             #ts_print(f"[JOURNAL] 发现删除用户: {', '.join(to_del)}")
             #users = [u for u in users if u["name"] not in to_del]
@@ -161,7 +169,7 @@ def main():
             save_json(USERS_FILE, users)
             ts_print("[JOURNAL] 已同步用户到 users.json")
         else:
-            ts_print("======nothing need to sync, done")
+            #ts_print("======nothing need to sync, done")
             return
     # 删除或清空用户
     elif args.clear:
@@ -187,13 +195,12 @@ def main():
             if name in existing_names:
                 ts_print(f"用户 {name} 已存在，跳过。")
                 continue
-            password = generate_password(args.password_length)
-            new_user = {"name": name, "uuid": str(uuid.uuid4()), "password": password}
+            new_user = create_user(name, args.password_length)
             users.append(new_user)
             existing_names.add(name)
             updated_users.add(name)
             added_count += 1
-            ts_print(f"已添加用户: {name}, 密码: {password}")
+            ts_print(f"已添加用户: {name}, 订阅号: {new_user['subscription_token']}")
 
         if added_count > 0:
             save_json(USERS_FILE, users)
@@ -207,24 +214,20 @@ def main():
     if not server_config:
         ts_print(f"读取服务端配置失败: {SERVER_CONFIG_FILE}")
         return
-    shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE) + ".bak")
-    ts_print(f"已备份服务端配置 -> {SERVER_CONFIG_FILE}.bak")
-
-    updated_any = False
+    
     for inbound in server_config.get("inbounds", []):
         protocol = inbound.get("type", "").lower()
         if protocol not in [p.lower() for p in args.protocols]:
-            continue
-        inbound["users"] = [make_user_entry(protocol, u) for u in users]
-        updated_any = True
-        ts_print(f"更新 {protocol} 用户: {', '.join(u['name'] for u in users)}")
-
-    if updated_any:
-        save_json(SERVER_CONFIG_FILE, server_config)
-        ts_print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
-        restart_container("singbox-server")
-    else:
-        ts_print("没有匹配到需要更新的 inbound 用户。")
+            inbound["users"] = []
+            ts_print(f"{protocol}禁用, 清除其用户")
+        else:
+            inbound["users"] = [make_user_entry(protocol, u) for u in users]
+            ts_print(f"更新 {protocol} 用户: {', '.join(u['name'] for u in users)}")
+    shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE) + ".bak")
+    ts_print(f"已备份服务端配置 -> {SERVER_CONFIG_FILE}.bak")
+    save_json(SERVER_CONFIG_FILE, server_config)
+    ts_print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
+    restart_container("singbox-server")
 
     # 生成客户端配置
     client_template = load_json(CLIENT_TEMPLATE_FILE)
@@ -275,6 +278,11 @@ def main():
         publish_file = user_publish_dir / f"{first_domain}-{user['name']}.json"
         shutil.copy(manage_file, publish_file)
         ts_print(f"已发布客户端配置: {publish_file}")
+        # 订阅号文件
+        if "subscription_token" in user:
+            sub_file = user_publish_dir / f"{first_domain}-{user['name']}.sub"
+            sub_file.write_text(user["subscription_token"], encoding="utf-8")
+            ts_print(f"已发布订阅号: {sub_file}")
 
     ts_print("所有操作完成！")
 
