@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-manage_users.py - Sing-box 用户管理脚本（生产级 + 变更检测 + 日志截断版）
+manage_users.py - Sing-box 用户管理脚本（全功能本地时间版）
 功能：
 - CLI / journal 用户管理
-- 自动停用到期用户
-- 宽限期删除逾期用户及文件
-- 支持恢复停用用户，可选延长有效期
-- 服务器配置仅在实际变化时更新
-- Docker 容器仅在配置变化时重启
+- 用户停用、逾期删除、恢复、延长有效期
+- 服务器配置仅在实际变化时更新，避免无意义重启
 - 客户端配置和订阅同步生成
 - 日志循环写入，防止无限增长
 """
@@ -27,7 +24,7 @@ USERS_FILE = SINGBOX_DIR / "users.json"
 SERVER_CONFIG_FILE = SINGBOX_DIR / "server" / "config.json"
 CLIENT_TEMPLATE_FILE = SINGBOX_DIR / "client" / "config.json"
 CONFIG_SH = BASE_DIR / "config.sh"
-LOG_FILE = BASE_DIR / "manage_users.log"
+LOG_FILE = BASE_DIR / "log" / "manage_users.log"
 
 # 自动创建缺失目录
 for path in [USERS_FILE, SERVER_CONFIG_FILE, CLIENT_TEMPLATE_FILE]:
@@ -35,23 +32,16 @@ for path in [USERS_FILE, SERVER_CONFIG_FILE, CLIENT_TEMPLATE_FILE]:
 JOURNAL_DB_USERS.mkdir(parents=True, exist_ok=True)
 
 # ------------------------
-# 配置日志（循环写入）
+# 日志配置（循环写入 + 控制台）
 # ------------------------
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# 循环文件日志
-file_handler = RotatingFileHandler(
-    LOG_FILE,
-    maxBytes=5*1024*1024,  # 5MB
-    backupCount=3,
-    encoding="utf-8"
-)
+file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8")
 formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
-# 控制台输出
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
@@ -62,18 +52,16 @@ def ts_print(msg):
 # ------------------------
 # 命令行参数
 # ------------------------
-parser = argparse.ArgumentParser(description="整合 Sing-box 用户管理脚本")
-parser.add_argument("--protocols", nargs="*", default=["tuic", "vless", "hysteria2", "shadowsocks"],
-                    help="指定需要更新的协议")
-parser.add_argument("--password_length", type=int, default=20, help="随机密码长度")
-parser.add_argument("--add", nargs="*", help="新增用户，空格或逗号分隔")
-parser.add_argument("--delete", nargs="*", help="删除指定用户名，空格或逗号分隔")
-parser.add_argument("--clear", action="store_true", help="清空所有用户")
-parser.add_argument("--update", action="store_true", help="同步 journal 用户及停用/删除逻辑")
-parser.add_argument("--enable", nargs="*", help="恢复已停用用户，空格或逗号分隔")
+parser = argparse.ArgumentParser(description="Sing-box 用户管理脚本")
+parser.add_argument("--protocols", nargs="*", default=["tuic","vless","hysteria2","shadowsocks"])
+parser.add_argument("--password_length", type=int, default=20)
+parser.add_argument("--add", nargs="*")
+parser.add_argument("--delete", nargs="*")
+parser.add_argument("--clear", action="store_true")
+parser.add_argument("--update", action="store_true")
+parser.add_argument("--enable", nargs="*")
 parser.add_argument("--extend", type=int, help="恢复用户时延长有效期，单位天")
-parser.add_argument("--expire_grace_days", type=int, default=5,
-                    help="用户到期后宽限期天数，超过将删除用户")
+parser.add_argument("--expire_grace_days", type=int, default=5)
 args = parser.parse_args()
 
 # ------------------------
@@ -81,28 +69,27 @@ args = parser.parse_args()
 # ------------------------
 def load_json(file_path, default=None):
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path,"r",encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return default if default is not None else []
 
-def save_json(file_path, data):
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+def save_json(file_path,data):
+    with open(file_path,"w",encoding="utf-8") as f:
+        json.dump(data,f,indent=2,ensure_ascii=False)
 
 def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
-def create_user(name, password_length, source="cli", expire_days=None):
-    expire_at = None
-    if expire_days is not None:
-        expire_at = (datetime.datetime.utcnow() + datetime.timedelta(days=expire_days)).isoformat()
+def create_user(name,password_length,source="cli",expire_days=None):
+    now = datetime.datetime.now()  # 本地时间
+    expire_at = (now + datetime.timedelta(days=expire_days)).isoformat() if expire_days else None
     return {
         "name": name,
         "uuid": str(uuid.uuid4()),
         "password": generate_password(password_length),
-        "created_at": datetime.datetime.utcnow().isoformat(),
+        "created_at": now.isoformat(),
         "enabled": True,
         "traffic_limit": None,
         "subscription_token": uuid.uuid4().hex,
@@ -141,7 +128,7 @@ def make_user_entry(protocol, user):
 
 def restart_container(name):
     try:
-        subprocess.run(["docker", "restart", name], check=True)
+        subprocess.run(["docker","restart",name],check=True)
         ts_print(f"已重启容器 {name}")
     except subprocess.CalledProcessError as e:
         ts_print(f"[WARN] 重启容器失败: {e}")
@@ -154,13 +141,9 @@ def cleanup_user_files(names, first_domain):
     uploads_root = BASE_DIR / "journal" / "public" / "uploads"
     for name in names:
         manage_file = client_manage_dir / f"{first_domain}-{name}.json"
-        if manage_file.exists():
-            manage_file.unlink()
-            ts_print(f"删除客户端配置: {manage_file}")
+        if manage_file.exists(): manage_file.unlink()
         user_publish_dir = uploads_root / name
-        if user_publish_dir.exists():
-            shutil.rmtree(user_publish_dir)
-            ts_print(f"删除发布目录: {user_publish_dir}")
+        if user_publish_dir.exists(): shutil.rmtree(user_publish_dir)
 
 # ------------------------
 # 主逻辑
@@ -174,9 +157,9 @@ def main():
     users = load_json(USERS_FILE, [])
     existing_names = {u["name"] for u in users}
     updated_users = set()
-    now = datetime.datetime.utcnow()
     users_updated = False
     config_updated = False
+    now = datetime.datetime.now()  # 本地时间
 
     # ------------------------
     # 自动更新 journal 用户
@@ -191,7 +174,6 @@ def main():
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
-                ts_print(f"已添加用户: {name}, 订阅号: {new_user['subscription_token']}")
             users_updated = True
 
     # ------------------------
@@ -216,9 +198,7 @@ def main():
 
     elif args.add:
         names = []
-        for name_str in args.add:
-            names.extend(split_user_input(name_str))
-        added_count = 0
+        for name_str in args.add: names.extend(split_user_input(name_str))
         for name in names:
             if name in existing_names:
                 ts_print(f"用户 {name} 已存在，跳过。")
@@ -227,59 +207,45 @@ def main():
             users.append(new_user)
             existing_names.add(name)
             updated_users.add(name)
-            added_count += 1
-            ts_print(f"已添加用户: {name}, 订阅号: {new_user['subscription_token']}")
-        if added_count > 0:
-            users_updated = True
+            ts_print(f"已添加用户: {name}")
+        if names: users_updated = True
 
     # ------------------------
     # 恢复用户逻辑
     # ------------------------
     if args.enable:
         enable_names = {n.strip() for name in args.enable for n in split_user_input(name)}
-        restored_count = 0
         for u in users:
             if u["name"] in enable_names and not u.get("enabled", True):
                 u["enabled"] = True
                 expire_at = u.get("expire_at")
                 if expire_at and args.extend:
                     expire_dt = datetime.datetime.fromisoformat(expire_at)
-                    now = datetime.datetime.utcnow()
-                    if expire_dt < now:
-                        expire_dt = now
+                    if expire_dt < now: expire_dt = now
                     u["expire_at"] = (expire_dt + datetime.timedelta(days=args.extend)).isoformat()
                 updated_users.add(u["name"])
-                restored_count += 1
-        if restored_count > 0:
-            users_updated = True
-            ts_print(f"已恢复 {restored_count} 个用户: {', '.join(enable_names)}")
+        users_updated = True
 
     # ------------------------
-    # 处理到期停用和逾期删除
+    # 停用到期 / 宽限期删除
     # ------------------------
     delete_users = set()
     for u in users:
         expire_at = u.get("expire_at")
         if expire_at:
             expire_dt = datetime.datetime.fromisoformat(expire_at)
-            # 到期停用
             if now >= expire_dt and u.get("enabled", True):
                 u["enabled"] = False
                 updated_users.add(u["name"])
-                ts_print(f"用户到期停用: {u['name']}")
-                users_updated = True
-            # 宽限期删除
             overdue_dt = expire_dt + datetime.timedelta(days=args.expire_grace_days)
             if now >= overdue_dt:
                 delete_users.add(u["name"])
-        elif not u.get("enabled", True):
-            ts_print(f"用户已停用: {u['name']}")
 
     if delete_users:
-        ts_print(f"逾期超过 {args.expire_grace_days} 天，删除用户: {', '.join(delete_users)}")
         users[:] = [u for u in users if u["name"] not in delete_users]
         existing_names -= delete_users
         cleanup_user_files(delete_users, first_domain)
+        ts_print(f"逾期删除用户: {', '.join(delete_users)}")
         users_updated = True
 
     # ------------------------
@@ -290,21 +256,18 @@ def main():
         ts_print(f"用户列表已更新 -> {USERS_FILE}")
 
     # ------------------------
-    # 更新 server config
+    # 更新服务端配置
     # ------------------------
     server_config = load_json(SERVER_CONFIG_FILE)
-    if not server_config:
-        ts_print(f"读取服务端配置失败: {SERVER_CONFIG_FILE}")
-        return
+    if not server_config: return
 
     for inbound in server_config.get("inbounds", []):
-        protocol = inbound.get("type", "").lower()
-        old_users = inbound.get("users", [])
-        new_users = [make_user_entry(protocol, u) for u in users if u.get("enabled", True)]
+        protocol = inbound.get("type","").lower()
+        old_users = inbound.get("users",[])
+        new_users = [make_user_entry(protocol,u) for u in users if u.get("enabled",True)]
         if old_users != new_users:
             inbound["users"] = new_users
             config_updated = True
-        ts_print(f"更新 {protocol} 用户: {', '.join(u['name'] for u in users if u.get('enabled', True))}")
 
     if config_updated:
         shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE)+".bak")
@@ -315,56 +278,46 @@ def main():
         ts_print("服务器配置无变更，无需重启容器")
 
     # ------------------------
-    # 生成客户端配置和订阅
+    # 客户端配置和订阅
     # ------------------------
     client_template = load_json(CLIENT_TEMPLATE_FILE)
-    if not client_template:
-        ts_print(f"读取客户端模板失败: {CLIENT_TEMPLATE_FILE}")
-        return
+    if not client_template: return
     client_manage_dir = CLIENT_TEMPLATE_FILE.parent / "users"
-    client_manage_dir.mkdir(parents=True, exist_ok=True)
+    client_manage_dir.mkdir(parents=True,exist_ok=True)
 
     for user in users:
-        if user["name"] not in updated_users:
-            continue
+        if user["name"] not in updated_users: continue
         new_config = copy.deepcopy(client_template)
         for outbound in new_config.get("outbounds", []):
-            protocol = outbound.get("type", "").lower()
-            if protocol not in [p.lower() for p in args.protocols]:
-                continue
+            protocol = outbound.get("type","").lower()
+            if protocol not in [p.lower() for p in args.protocols]: continue
             if protocol == "tuic":
                 outbound["uuid"] = user["uuid"]
                 outbound["password"] = user["password"]
             elif protocol == "vless":
                 outbound["uuid"] = user["uuid"]
-            elif protocol in ["hysteria2", "shadowsocks"]:
+            elif protocol in ["hysteria2","shadowsocks"]:
                 outbound["password"] = user["password"]
             if first_domain:
-                if "server" in outbound:
-                    outbound["server"] = first_domain
-                if "tls" in outbound and isinstance(outbound["tls"], dict):
+                if "server" in outbound: outbound["server"] = first_domain
+                if "tls" in outbound and isinstance(outbound["tls"],dict):
                     if "reality" in outbound["tls"] and reality_sni:
                         outbound["tls"]["server_name"] = reality_sni
                     else:
                         outbound["tls"]["server_name"] = first_domain
 
         manage_file = client_manage_dir / f"{first_domain}-{user['name']}.json"
-        save_json(manage_file, new_config)
-        ts_print(f"已生成客户端配置 -> {manage_file}")
-
+        save_json(manage_file,new_config)
         user_publish_dir = BASE_DIR / "journal" / "public" / "uploads" / user["name"]
-        user_publish_dir.mkdir(parents=True, exist_ok=True)
+        user_publish_dir.mkdir(parents=True,exist_ok=True)
         publish_file = user_publish_dir / f"{first_domain}-{user['name']}.json"
-        shutil.copy(manage_file, publish_file)
-
+        shutil.copy(manage_file,publish_file)
         sub_file = user_publish_dir / f"{first_domain}-{user['name']}.txt"
-        if not user.get("enabled", True):
-            sub_file.write_text("⚠️ 账号已停用", encoding="utf-8")
-            ts_print(f"已生成停用提示订阅文件: {sub_file}")
+        if not user.get("enabled",True):
+            sub_file.write_text("⚠️ 账号已停用",encoding="utf-8")
         else:
             sub_url = f"https://{first_domain}/sub/{user['subscription_token']}"
-            sub_file.write_text(sub_url, encoding="utf-8")
-            ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}")
+            sub_file.write_text(sub_url,encoding="utf-8")
 
     ts_print("所有操作完成！")
 
