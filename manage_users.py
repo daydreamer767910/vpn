@@ -61,6 +61,7 @@ parser.add_argument("--update", action="store_true")
 parser.add_argument("--enable", nargs="*")
 parser.add_argument("--extend", type=int, help="恢复或新增用户时延长有效期，单位天")
 parser.add_argument("--expire_grace_days", type=int, default=5)
+parser.add_argument("--refresh", nargs="*", help="刷新指定用户uuid 和 password,同步到服务和客户端配置,但保留subscription token")
 args = parser.parse_args()
 
 # ------------------------
@@ -233,6 +234,29 @@ def main():
                 updated_users.add(u["name"])
         if enable_names: users_updated = True
 
+    # ------------------------
+    # 刷新用户 uuid / password和配置
+    # ------------------------
+    if args.refresh is not None:  # 用户指定了 --refresh
+        refresh_names = []
+        for name_str in args.refresh: refresh_names.extend(split_user_input(name_str))
+
+        if refresh_names:
+            # 刷新指定用户
+            target_users = [u for u in users if u["name"] in refresh_names and u.get("enabled", True)]
+        else:
+            # 空列表，刷新所有启用用户
+            target_users = [u for u in users if u.get("enabled", True)]
+
+        if target_users:
+            for u in target_users:
+                old_uuid = u["uuid"]
+                #old_pass = u["password"]
+                u["uuid"] = str(uuid.uuid4())
+                u["password"] = generate_password(args.password_length)
+                updated_users.add(u["name"])
+                ts_print(f"用户 {u['name']} uuid/password 已刷新: {old_uuid} -> {u['uuid']}")
+            users_updated = True
     # ------------------------
     # 停用到期 / 宽限期删除
     # ------------------------
