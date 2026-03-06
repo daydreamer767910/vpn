@@ -101,7 +101,17 @@ mkdir -p "$LOG_DIR"
 mkdir -p ./journal/public
 mkdir -p ./journal/logs
 #cp -a . /home/$DEPLOY_USER/
-rsync -a --exclude='deploy_all.sh' --exclude='.git' --exclude='*.md' ./ /home/$DEPLOY_USER/
+# rsync 时排除用户数据和配置目录
+rsync -a \
+    --exclude='singbox/users.json' \
+    --exclude='singbox/client/users/' \
+    --exclude='journal/public/uploads/' \
+    --exclude='journal/db/users/' \
+    --exclude='deploy_all.sh' \
+    --exclude='*.md' \
+    --exclude='.git' \
+    ./ /home/$DEPLOY_USER/
+#rsync -a --exclude='deploy_all.sh' --exclude='.git' --exclude='*.md' ./ /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
 # -------------------------
