@@ -23,6 +23,7 @@ JOURNAL_DB_USERS = BASE_DIR / "journal" / "db" / "users"
 USERS_FILE = SINGBOX_DIR / "users.json"
 SERVER_CONFIG_FILE = SINGBOX_DIR / "server" / "config.json"
 CLIENT_TEMPLATE_FILE = SINGBOX_DIR / "client" / "config.json"
+CONFIG_SH = BASE_DIR / "config.sh"
 LOG_FILE = BASE_DIR / "log" / "manage_users.log"
 
 # 自动创建缺失目录
