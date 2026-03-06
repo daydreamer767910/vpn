@@ -296,28 +296,28 @@ def main():
 
     for user in users:
         if user["name"] not in updated_users: continue
-        new_config = copy.deepcopy(client_template)
-        for outbound in new_config.get("outbounds", []):
-            protocol = outbound.get("type","").lower()
-            if protocol not in [p.lower() for p in args.protocols]: continue
-            if protocol == "tuic":
-                outbound["uuid"] = user["uuid"]
-                outbound["password"] = user["password"]
-            elif protocol == "vless":
-                outbound["uuid"] = user["uuid"]
-            elif protocol in ["hysteria2","shadowsocks"]:
-                outbound["password"] = user["password"]
-            if first_domain:
-                if "server" in outbound: outbound["server"] = first_domain
-                if "tls" in outbound and isinstance(outbound["tls"],dict):
-                    if "reality" in outbound["tls"] and reality_sni:
-                        outbound["tls"]["server_name"] = reality_sni
-                    else:
-                        outbound["tls"]["server_name"] = first_domain
-
-        manage_file = client_manage_dir / f"{user['name']}.json"
-        save_json_atomic(manage_file,new_config)
-        ts_print(f"已生成客户端配置 -> {manage_file}")
+        if user.get("enabled", True):
+            new_config = copy.deepcopy(client_template)
+            for outbound in new_config.get("outbounds", []):
+                protocol = outbound.get("type","").lower()
+                if protocol not in [p.lower() for p in args.protocols]: continue
+                if protocol == "tuic":
+                    outbound["uuid"] = user["uuid"]
+                    outbound["password"] = user["password"]
+                elif protocol == "vless":
+                    outbound["uuid"] = user["uuid"]
+                elif protocol in ["hysteria2","shadowsocks"]:
+                    outbound["password"] = user["password"]
+                if first_domain:
+                    if "server" in outbound: outbound["server"] = first_domain
+                    if "tls" in outbound and isinstance(outbound["tls"],dict):
+                        if "reality" in outbound["tls"] and reality_sni:
+                            outbound["tls"]["server_name"] = reality_sni
+                        else:
+                            outbound["tls"]["server_name"] = first_domain
+            manage_file = client_manage_dir / f"{user['name']}.json"
+            save_json_atomic(manage_file,new_config)
+            ts_print(f"已生成客户端配置 -> {manage_file}")
 
         # 发布 token
         user_publish_dir = BASE_DIR / "journal" / "public" / "uploads" / user["name"]
