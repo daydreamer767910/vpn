@@ -203,7 +203,7 @@ def main():
             if name in existing_names:
                 ts_print(f"用户 {name} 已存在，跳过。")
                 continue
-            new_user = create_user(name, args.password_length)
+            new_user = create_user(name, args.password_length, source="cli", expire_days=args.extend)
             users.append(new_user)
             existing_names.add(name)
             updated_users.add(name)
@@ -237,6 +237,8 @@ def main():
             if now >= expire_dt and u.get("enabled", True):
                 u["enabled"] = False
                 updated_users.add(u["name"])
+                ts_print(f"用户到期停用: {u['name']}")
+                users_updated = True
             overdue_dt = expire_dt + datetime.timedelta(days=args.expire_grace_days)
             if now >= overdue_dt:
                 delete_users.add(u["name"])
