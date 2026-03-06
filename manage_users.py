@@ -308,6 +308,8 @@ def main():
 
         manage_file = client_manage_dir / f"{first_domain}-{user['name']}.json"
         save_json(manage_file,new_config)
+        ts_print(f"已生成客户端配置 -> {manage_file}")
+
         user_publish_dir = BASE_DIR / "journal" / "public" / "uploads" / user["name"]
         user_publish_dir.mkdir(parents=True,exist_ok=True)
         publish_file = user_publish_dir / f"{first_domain}-{user['name']}.json"
@@ -315,9 +317,11 @@ def main():
         sub_file = user_publish_dir / f"{first_domain}-{user['name']}.txt"
         if not user.get("enabled",True):
             sub_file.write_text("⚠️ 账号已停用",encoding="utf-8")
+            ts_print(f"已生成停用提示订阅文件: {sub_file}")
         else:
             sub_url = f"https://{first_domain}/sub/{user['subscription_token']}"
             sub_file.write_text(sub_url,encoding="utf-8")
+            ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}")
 
     ts_print("所有操作完成！")
 
