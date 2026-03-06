@@ -191,12 +191,12 @@ MANAGE_SCRIPT="/home/$DEPLOY_USER/manage_users.py"
 SYNCLOG_FILE="$LOG_DIR/user_sync.log"
 
 # 添加到目标用户 crontab
-CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --auto_check_journal >> $SYNCLOG_FILE 2>&1"
+CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --update >> $SYNCLOG_FILE 2>&1"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'manage_users.py'; echo '$CRON_JOB') | crontab -"
 
 echo "[INFO] User sync cron job configured:"
 echo "  Schedule: $CRON_SCHEDULE"
-echo "  Command : $MANAGE_SCRIPT --auto_check_journal"
+echo "  Command : $MANAGE_SCRIPT --update"
 echo "  Log     : $SYNCLOG_FILE"
 # -------------------------
 echo "==== [DEPLOY] Deployment complete! ===="
