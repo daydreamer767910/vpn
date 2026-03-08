@@ -10,7 +10,7 @@ manage_users.py - Sing-box 用户管理脚本（安全 & 原子写入版）
 - 日志循环写入，防止无限增长
 """
 
-import json, os, shutil, uuid, random, string, argparse, subprocess, datetime, re, copy, logging
+import json, os, shutil, uuid, secrets, random, string, argparse, subprocess, datetime, re, copy, logging
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
@@ -97,7 +97,7 @@ def create_user(name, password_length, source="cli", expire_days=None):
         "upload": 0,
         "download": 0,
         "traffic_limit": None,
-        "subscription_token": uuid.uuid4().hex,
+        "subscription_token": secrets.token_urlsafe(32),#uuid.uuid4().hex,
         "source": source,
         "expire_at": expire_at
     }
