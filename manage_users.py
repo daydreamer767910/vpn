@@ -302,14 +302,6 @@ def main():
             inbound["users"] = new_users
             config_updated = True
 
-    if config_updated:
-        shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE)+".bak")
-        save_json_atomic(SERVER_CONFIG_FILE, server_config)
-        ts_print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
-        restart_container("singbox-server")
-    else:
-        ts_print("服务器配置无变更，无需重启容器")
-
     # ------------------------
     # 客户端配置和订阅
     # ------------------------
@@ -354,6 +346,16 @@ def main():
             sub_url = f"https://{first_domain}/sub/{user['subscription_token']}"
             sub_file.write_text(sub_url,encoding="utf-8")
             ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}")
+    # ------------------------
+    # 重启服务(放在最后一步)
+    # ------------------------   
+    if config_updated:
+        shutil.copy(SERVER_CONFIG_FILE, str(SERVER_CONFIG_FILE)+".bak")
+        save_json_atomic(SERVER_CONFIG_FILE, server_config)
+        ts_print(f"服务端用户已更新 -> {SERVER_CONFIG_FILE}")
+        restart_container("singbox-server")
+    else:
+        ts_print("服务器配置无变更，无需重启容器")
 
     ts_print("所有操作完成！")
 
