@@ -67,8 +67,8 @@ services:
     networks:
       lan:
          ipv4_address: 172.19.0.2
-    ports:
-      - "5000:5000"
+    #ports:
+      #- "5000:5000"
     volumes:
       - ./singbox:/app/singbox:ro
     restart: unless-stopped
