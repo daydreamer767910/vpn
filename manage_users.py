@@ -94,6 +94,8 @@ def create_user(name, password_length, source="cli", expire_days=None):
         "password": generate_password(password_length),
         "created_at": now.isoformat(),
         "enabled": True,
+        "upload": 0,
+        "download": 0,
         "traffic_limit": None,
         "subscription_token": uuid.uuid4().hex,
         "source": source,
