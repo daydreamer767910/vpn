@@ -14,15 +14,15 @@
   "outbounds": [
     {
       "type": "hysteria2",
-	  "tag": "hy2-out",
+	    "tag": "hy2-out",
       "server": "wewewe.duckdns.org",
       "server_port": 8443,
 	    "obfs": {
         "type": "salamander",
-        "password": "cry_me_a_r1ver"
+        "password": "1NlXeWE6v0J3S"
       },
       "password": "mypassword",
-      "tls": { "enabled": true, "server_name": "wewewe.duckdns.org" }
+      "tls": { "enabled": true, "server_name": "wewewe.duckdns.org" , "alpn": ["h3"]}
     },
     {
       "type": "tuic",
@@ -43,7 +43,7 @@
       "type": "vless",
       "tag": "vless-out",
       "server": "wewewewe.duckdns.org",
-      "server_port": 443,
+      "server_port": 8443,
       "uuid": "11111111-2222-3333-4444-555555555555",
       "flow": "xtls-rprx-vision",
       "tls": {

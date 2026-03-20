@@ -3,7 +3,7 @@
 
 # 最终用户
 DEPLOY_USER="vpn"
-USER_EMAIL="daydreamer767910@gmail.com"
+USER_EMAIL="xxxxxxxx@gmail.com"
 
 # 时区
 TIMEZONE="America/Los_Angeles"
@@ -12,12 +12,11 @@ TIMEZONE="America/Los_Angeles"
 SNI="www.microsoft.com"
 
 # 域名列表
-DOMAINLIST=("mass2000.duckdns.org" "dd2000.duckdns.org")
+DOMAINLIST=("xxx.yyy.zzz" "aaa.bbb.ccc")
 
-# 证书源目录
+# 证书目录
 CERT_SRC="/etc/letsencrypt/live/${DOMAINLIST[0]}"
-NGINX_CERT_DST="/home/$DEPLOY_USER/Nginx/certbot"
-SINGBOX_CERT_DST="/home/$DEPLOY_USER/singbox/server"
+CERT_DST="/home/$DEPLOY_USER/cert"
 
 # Docker 容器名
 NGINX_CONTAINER="nginx"

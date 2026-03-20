@@ -72,22 +72,7 @@ if [ -f "$SSH_KEY_SRC" ]; then
 else
     echo "Warning: $SSH_KEY_SRC does not exist. Skipping SSH key setup."
 fi
-# -------------------------
-# 5. 设置环境变量
-# -------------------------
-# 生成 docker compose 使用的 UID/GID
-# -------------------------
-echo "[INFO] Generating .env for $DEPLOY_USER..."
 
-DEPLOY_UID=$(id -u "$DEPLOY_USER")
-DEPLOY_GID=$(id -g "$DEPLOY_USER")
-
-cat > /home/$DEPLOY_USER/.env <<EOF
-DEPLOY_UID=$DEPLOY_UID
-DEPLOY_GID=$DEPLOY_GID
-EOF
-
-chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.env
 # -------------------------
 # 移动仓库内容到用户目录
 # -------------------------
@@ -97,16 +82,11 @@ LOG_DIR="$(dirname "$LOG_FILE")"
 
 # 确保日志目录存在
 mkdir -p "$LOG_DIR"
-# 确保docker的volumes存在
-mkdir -p ./journal/public
-mkdir -p ./journal/logs
-#cp -a . /home/$DEPLOY_USER/
+
 # rsync 时排除用户数据和配置目录
 rsync -a \
     --exclude='singbox/users.json' \
     --exclude='singbox/client/users/' \
-    --exclude='journal/public/uploads/' \
-    --exclude='journal/db/users/' \
     --exclude='deploy_all.sh' \
     --exclude='*.md' \
     --exclude='.git' \
@@ -130,9 +110,9 @@ echo "[INFO] Allowing required ports..."
 ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 443/tcp
+ufw allow 8443/tcp
 ufw allow 443/udp
 ufw allow 8443/udp
-ufw allow 51820/udp
 if ! ufw status | grep -q "Status: active"; then
     ufw --force enable
 fi
@@ -153,20 +133,88 @@ then
 
     echo "==== Copying certificates..."
 
-    mkdir -p "$NGINX_CERT_DST" "$SINGBOX_CERT_DST"
+    mkdir -p "$CERT_DST"
 
-    rsync -a --copy-links "$CERT_SRC"/ "$NGINX_CERT_DST"/
-    rsync -a --copy-links "$CERT_SRC"/ "$SINGBOX_CERT_DST"/
+    rsync -a --copy-links "$CERT_SRC"/ "$CERT_DST"/
 
     # 修改权限
-    chown -R $DEPLOY_USER:$DEPLOY_USER "$NGINX_CERT_DST"
-    chown -R $DEPLOY_USER:$DEPLOY_USER "$SINGBOX_CERT_DST"
+    chown -R $DEPLOY_USER:$DEPLOY_USER "$CERT_DST"
 
     echo "==== Certificates copied successfully."
 else
     echo "!!!! Certificate obtain failed. Skipping copy step."
 fi
 
+echo "[INFO] Generating docker-compose.yml..."
+
+cat > /home/$DEPLOY_USER/docker-compose.yml <<EOF
+services:
+  nginx:
+    image: nginx:latest
+    container_name: ${NGINX_CONTAINER}
+    networks:
+      lan:
+         ipv4_address: 172.19.0.2
+    restart: unless-stopped
+    environment:
+      - TZ=${TIMEZONE}
+    ports:
+      - "443:443/tcp"
+    volumes:
+      - /home/$DEPLOY_USER/Nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${CERT_DST}:/etc/nginx/certbot:ro
+    depends_on:
+      - ${SINGBOX_CONTAINER}
+
+  sing-box:
+    image: ghcr.io/sagernet/sing-box:latest
+    environment:
+      - TZ=${TIMEZONE}
+    container_name: ${SINGBOX_CONTAINER}
+    restart: unless-stopped
+    command: >
+      run -c /app/singbox/config.json
+    volumes:
+      - ${CERT_DST}:/app/cert:ro
+      - ./singbox/server:/app/singbox
+    ports:
+      #VLESS / Reality 
+      - '8443:8443/tcp'
+      #TUIC
+      - '443:443/udp'
+      #Hysteria2
+      - '8443:8443/udp'
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      lan:
+        ipv4_address: 172.19.0.3
+
+  flask-server:
+    build: ./flask
+    container_name: flask-server
+    networks:
+      lan:
+         ipv4_address: 172.19.0.4
+    #ports:
+      #- "5000:5000"
+    volumes:
+      - ./singbox:/app/singbox:ro
+    restart: unless-stopped
+
+networks:
+  lan:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
+EOF
+
+chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/docker-compose.yml
+echo "[INFO] docker-compose.yml generated."
 # -------------------------
 # 配置 sudo NOPASSWD 给最终用户
 # -------------------------
@@ -190,23 +238,7 @@ CRON_SCHEDULE="${CRON_SCHEDULE:-0 3 * * *}"
 CRON_JOB="$CRON_SCHEDULE /home/$DEPLOY_USER/smart_run.sh"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; echo '$CRON_JOB') | crontab -"
 # -------------------------
-# 配置定时轮询任务检查 journal/db/users/
-# -------------------------
-echo "[INFO] Setting crontab for user sync..."
-# 定时执行周期，例如每 5 分钟一次
-CRON_SCHEDULE="${USER_SYNC_CRON:-*/5 * * * *}"
-# manage_users.py 路径
-MANAGE_SCRIPT="/home/$DEPLOY_USER/manage_users.py"
-
-# 添加到目标用户 crontab
-CRON_JOB="$CRON_SCHEDULE /usr/bin/python3 $MANAGE_SCRIPT --update"
-sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'manage_users.py'; echo '$CRON_JOB') | crontab -"
-
-echo "[INFO] User sync cron job configured:"
-echo "  Schedule: $CRON_SCHEDULE"
-echo "  Command : $MANAGE_SCRIPT --update"
-# -------------------------
+su - $DEPLOY_USER -c "docker compose up -d"
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
-echo "1. Switch to user: su - $DEPLOY_USER"
-echo "2. Run docker compose up -d for initial sync"
+echo "Switch to user: su - $DEPLOY_USER"
