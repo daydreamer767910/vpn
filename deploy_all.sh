@@ -164,7 +164,7 @@ services:
       - /home/$DEPLOY_USER/Nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
       - ${CERT_DST}:/etc/nginx/certbot:ro
     depends_on:
-      - ${SINGBOX_CONTAINER}
+      - sing-box
 
   sing-box:
     image: ghcr.io/sagernet/sing-box:latest
