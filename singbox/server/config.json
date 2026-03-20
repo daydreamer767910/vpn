@@ -24,6 +24,7 @@
         "server": "dns-ts"
       }
     ],
+    "strategy": "prefer_ipv4",
     "final": "local"
   },
   "ntp": null,
@@ -96,7 +97,7 @@
             "server": "www.microsoft.com",
             "server_port": 443
           },
-          "private_key": "eJyMzUQoVl95dbEbtZmrqciGSsRBRX0--OyG7a_oQF4",
+          "private_key": "gF_i7rzjmepsg0JDCpVLep368C86rBKop5rwdSBqkmo",
           "short_id": [
             "",
             "66016d0b",
@@ -209,12 +210,6 @@
             "ip_cidr": [
               "100.64.0.0/10",
               "fd7a:115c:a1e0::/48"
-            ]
-          },
-          {
-            "inbound": [
-              "vless-8443",
-              "hysteria2-8443"
             ]
           }
         ]

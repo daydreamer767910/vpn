@@ -51,8 +51,8 @@
         "server_name": "www.microsoft.com",
         "reality": {
           "enabled": true,
-          "public_key": "1NlXeWE6v0J3S-CN-VfX6qMZ0AuL_k4wR9dvLbHJrhw",
-          "short_id": "07290e1487ccbd1e"
+          "public_key": "VPx_SxcVbxZgeQxdQRAcI3rjD7rLJXif5Cpm7gKBc3Y",
+          "short_id": "0abd24"
         },
         "utls": {
           "enabled": true,
