@@ -290,7 +290,7 @@ cat > "$SERVER_CONFIG" <<EOF
     "rules": [
       {
         "domain_suffix": [
-          "tail4e565.ts.net"
+          "$TS_DOMAIN_SUFFIX"
         ],
         "action": "route",
         "server": "dns-ts"
@@ -380,12 +380,12 @@ cat > "$SERVER_CONFIG" <<EOF
   "services": null,
   "endpoints": [
     {
-      "auth_key": "tskey-auth-kWohtATBST11CNTRL-dc2CsT1CargmmW9yVPgPrg8RDjA5ZJFQ6",
+      "auth_key": "$TS_AUTH_KEY",
       "control_url": "https://controlplane.tailscale.com",
       "domain_resolver": "local",
-      "exit_node": "100.68.141.58",
+      "exit_node": "$TS_EXIT_NODE",
       "exit_node_allow_lan_access": true,
-      "hostname": "dd2001",
+      "hostname": "$TS_HOSTNAME",
       "state_directory": "/app/db/.tailscale",
       "tag": "ts-ep",
       "type": "tailscale"
@@ -431,14 +431,11 @@ cat > "$SERVER_CONFIG" <<EOF
         "rules": [
           {
             "domain": [
-              "dd2001.tail4e565.ts.net"
+              "$TS_HOSTNAME.$TS_DOMAIN_SUFFIX"
             ]
           },
           {
-            "ip_cidr": [
-              "100.81.222.82",
-              "fd7a:115c:a1e0::8835:de52"
-            ]
+            "ip_cidr": [$TS_HOSTIP]
           }
         ]
       },
@@ -450,7 +447,7 @@ cat > "$SERVER_CONFIG" <<EOF
         "rules": [
           {
             "domain_suffix": [
-              "tail4e565.ts.net"
+              "$TS_DOMAIN_SUFFIX"
             ]
           },
           {
