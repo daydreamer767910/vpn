@@ -108,12 +108,12 @@ ufw default deny incoming
 ufw default allow outgoing
 echo "[INFO] Allowing required ports..."
 # 允许需要的端口
-ufw allow 22/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw allow $SINGBOX_PORT_VLESS/tcp
-ufw allow $SINGBOX_PORT_TUIC/udp
-ufw allow $SINGBOX_PORT_HYSTERIA2/udp
+for port in "${TCP_PORTS[@]}"; do
+    ufw allow "$port"/tcp
+done
+for port in "${UDP_PORTS[@]}"; do
+    ufw allow "$port"/udp
+done
 if ! ufw status | grep -q "Status: active"; then
     ufw --force enable
 fi
