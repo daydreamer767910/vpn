@@ -8,8 +8,18 @@ USER_EMAIL="xxxxxxxx@gmail.com"
 # 时区
 TIMEZONE="America/Los_Angeles"
 
-# 这个值必须和 Nginx stream map 配置里的 SNI 一致,除非不使用443反代
+
+# Sing-box 各协议监听端口
+SINGBOX_PORT_VLESS=8443
+SINGBOX_PORT_TUIC=443
+SINGBOX_PORT_HYSTERIA2=8443
+# Reality TLS 配置
 SNI="www.microsoft.com"
+REALITY_PUBLIC_KEY="VPx_SxcVbxZgeQxdQRAcI3rjD7rLJXif5Cpm7gKBc3Y"
+REALITY_PRIVATE_KEY="gF_i7rzjmepsg0JDCpVLep368C86rBKop5rwdSBqkmo"
+REALITY_SHORT_ID="0abd24"
+# DNS
+DNS_STRATEGY="prefer_ipv4"
 
 # 域名列表
 DOMAINLIST=("xxx.yyy.zzz" "aaa.bbb.ccc")
@@ -27,6 +37,3 @@ LOG_FILE="/home/$DEPLOY_USER/log/smart_run.log"
 
 # 定期检查证书
 CRON_SCHEDULE="0 3 * * *"
-
-# 定期检查用户变动
-USER_SYNC_CRON="*/1 * * * *"
