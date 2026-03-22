@@ -1,12 +1,20 @@
-# 使用官方 Python 镜像
-FROM python:3.12-slim
+FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-# 安装 Flask
-RUN pip install flask gunicorn
+RUN go mod init app
 
-# 复制 Flask 服务代码和发布目录
-COPY app.py /app/
+# 再复制源码
+COPY . .
 
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -o app .
+
+FROM alpine:3.19
+
+WORKDIR /app
+
+COPY --from=builder /app/app /app/app
+
+EXPOSE 5000
+ENTRYPOINT ["/app/app"]
