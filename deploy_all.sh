@@ -313,7 +313,7 @@ cat > "$SERVER_CONFIG" <<EOF
         "password": "1NlXeWE6v0J3S",
         "type": "salamander"
       },
-      "tag": "hysteria2-in",
+      "tag": "hy2",
       "tls": {
         "alpn": [
           "h3",
@@ -332,7 +332,7 @@ cat > "$SERVER_CONFIG" <<EOF
       "congestion_control": "bbr",
       "listen": "::",
       "listen_port": $SINGBOX_PORT_TUIC,
-      "tag": "tuic-in",
+      "tag": "tuic",
       "tls": {
         "alpn": [
           "h3",
@@ -350,7 +350,7 @@ cat > "$SERVER_CONFIG" <<EOF
       "type": "vless",
       "listen": "::",
       "listen_port": $SINGBOX_PORT_VLESS,
-      "tag": "vless-in",
+      "tag": "vless",
       "tls": {
         "enabled": true,
         "reality": {
@@ -510,7 +510,7 @@ cat > "$CLIENT_CONFIG" <<EOF
   "outbounds": [
     {
       "type": "hysteria2",
-	    "tag": "hy2-out",
+	    "tag": "hy2",
       "server": "${DOMAINLIST[0]}",
       "server_port": $SINGBOX_PORT_HYSTERIA2,
 	    "obfs": {
@@ -522,7 +522,7 @@ cat > "$CLIENT_CONFIG" <<EOF
     },
     {
       "type": "tuic",
-      "tag": "tuic-out",
+      "tag": "tuic",
       "server": "${DOMAINLIST[0]}",
       "server_port": $SINGBOX_PORT_TUIC,
       "uuid": "1111-1111-1111-1111-1111",
@@ -537,7 +537,7 @@ cat > "$CLIENT_CONFIG" <<EOF
     },
 	{
       "type": "vless",
-      "tag": "vless-out",
+      "tag": "vless",
       "server": "${DOMAINLIST[0]}",
       "server_port": $SINGBOX_PORT_VLESS,
       "uuid": "11111111-2222-3333-4444-555555555555",
@@ -559,7 +559,7 @@ cat > "$CLIENT_CONFIG" <<EOF
 	{
 		"type": "urltest",
 		"tag": "auto-proxy",
-		"outbounds": ["hy2-out", "tuic-out", "vless-out"],
+		"outbounds": ["hy2", "tuic", "vless"],
 		"url": "https://www.gstatic.com/generate_204",
 		"interval": "5m"
 	},

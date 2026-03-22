@@ -52,15 +52,13 @@ def ts_print(msg):
 # 命令行参数
 # ------------------------
 parser = argparse.ArgumentParser(description="Sing-box 用户管理脚本")
-parser.add_argument("--protocols", nargs="*", default=["tuic","vless","hysteria2","shadowsocks"])
-parser.add_argument("--password_length", type=int, default=20)
+parser.add_argument("--tags", nargs="*", default=["all"])
 parser.add_argument("--add", nargs="*")
 parser.add_argument("--delete", nargs="*")
 parser.add_argument("--clear", action="store_true")
 parser.add_argument("--update", action="store_true")
 parser.add_argument("--enable", nargs="*")
 parser.add_argument("--extend", type=int, help="恢复或新增用户时延长有效期，单位天")
-parser.add_argument("--expire_grace_days", type=int, default=5)
 parser.add_argument("--refresh", nargs="*", help="刷新指定用户uuid 和 password,同步到服务和客户端配置,但保留subscription token")
 args = parser.parse_args()
 
@@ -85,13 +83,15 @@ def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
-def create_user(name, password_length, source="cli", expire_days=None):
+def create_user(name, source="cli", expire_days=None, tags=None):
     now = datetime.datetime.now()
     expire_at = (now + datetime.timedelta(days=expire_days)).isoformat() if expire_days else None
+    if tags is None:
+        tags = ["all"]
     return {
         "name": name,
         "uuid": str(uuid.uuid4()),
-        "password": generate_password(password_length),
+        "password": generate_password(20),
         "created_at": now.isoformat(),
         "enabled": True,
         "upload": 0,
@@ -99,7 +99,8 @@ def create_user(name, password_length, source="cli", expire_days=None):
         "traffic_limit": None,
         "subscription_token": secrets.token_urlsafe(32),#uuid.uuid4().hex,
         "source": source,
-        "expire_at": expire_at
+        "expire_at": expire_at,
+        "tags": tags
     }
 
 def parse_config_sh(sh_file: Path):
@@ -179,7 +180,7 @@ def main():
         if to_add:
             ts_print(f"[UPDATE] 发现新增用户: {', '.join(to_add)}")
             for name in to_add:
-                new_user = create_user(name, args.password_length, source="journal")
+                new_user = create_user(name, source="journal")
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
@@ -210,7 +211,7 @@ def main():
         for name_str in args.add: names.extend(split_user_input(name_str))
         for name in names:
             if name not in existing_names:
-                new_user = create_user(name, args.password_length, source="cli", expire_days=args.extend)
+                new_user = create_user(name, source="cli", expire_days=args.extend, tags=args.tags)
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
@@ -255,7 +256,7 @@ def main():
                 old_uuid = u["uuid"]
                 #old_pass = u["password"]
                 u["uuid"] = str(uuid.uuid4())
-                u["password"] = generate_password(args.password_length)
+                u["password"] = generate_password(20)
                 updated_users.add(u["name"])
                 ts_print(f"用户 {u['name']} uuid/password 已刷新: {old_uuid} -> {u['uuid']}")
             users_updated = True
@@ -272,7 +273,7 @@ def main():
                 updated_users.add(u["name"])
                 ts_print(f"用户到期停用: {u['name']}")
                 users_updated = True
-            overdue_dt = expire_dt + datetime.timedelta(days=args.expire_grace_days)
+            overdue_dt = expire_dt + datetime.timedelta(days=7)
             if now >= overdue_dt:
                 delete_users.add(u["name"])
 
@@ -298,8 +299,15 @@ def main():
 
     for inbound in server_config.get("inbounds", []):
         protocol = inbound.get("type","").lower()
+        tag = inbound.get("tag")
         old_users = inbound.get("users",[])
-        new_users = [make_user_entry(protocol,u) for u in users if u.get("enabled",True)]
+        #new_users = [make_user_entry(protocol,u) for u in users if u.get("enabled",True)]
+        new_users = [
+            make_user_entry(protocol, u) 
+            for u in users 
+            if u.get("enabled", True) 
+            and (not u.get("tags") or "all" in u.get("tags") or tag in u.get("tags"))
+        ]
         if old_users != new_users:
             inbound["users"] = new_users
             config_updated = True
@@ -317,8 +325,12 @@ def main():
         if user.get("enabled", True):
             new_config = copy.deepcopy(client_template)
             for outbound in new_config.get("outbounds", []):
+                tag = outbound.get("tag","")
+                tags = user.get("tags") or []
+                # 跳过不属于当前 outbound 的用户
+                if tags and "all" not in tags and tag not in tags:
+                    continue
                 protocol = outbound.get("type","").lower()
-                if protocol not in [p.lower() for p in args.protocols]: continue
                 if protocol == "tuic":
                     outbound["uuid"] = user["uuid"]
                     outbound["password"] = user["password"]
