@@ -324,9 +324,11 @@ def main():
         if user["name"] not in updated_users: continue
         if user.get("enabled", True):
             new_config = copy.deepcopy(client_template)
+            tags = user.get("tags") or []
+            # 真正过滤 outbounds，不属于用户 tags 的删除
+            filtered_outbounds = []
             for outbound in new_config.get("outbounds", []):
                 tag = outbound.get("tag","")
-                tags = user.get("tags") or []
                 # 跳过不属于当前 outbound 的用户
                 if tags and "all" not in tags and tag not in tags:
                     continue
@@ -345,6 +347,10 @@ def main():
                             outbound["tls"]["server_name"] = reality_sni
                         else:
                             outbound["tls"]["server_name"] = first_domain
+                # 保留这个 outbound
+                filtered_outbounds.append(outbound)
+            # 替换 new_config 的 outbounds
+            new_config["outbounds"] = filtered_outbounds
             manage_file = client_manage_dir / f"{user['name']}.json"
             save_json_atomic(manage_file,new_config)
             ts_print(f"已生成客户端配置 -> {manage_file}")
