@@ -239,15 +239,12 @@ CRON_SCHEDULE="${CRON_SCHEDULE:-0 3 * * *}"
 CRON_JOB="$CRON_SCHEDULE /home/$DEPLOY_USER/smart_run.sh"
 sudo -u $DEPLOY_USER bash -c "(crontab -l 2>/dev/null | grep -v 'smart_run.sh'; echo '$CRON_JOB') | crontab -"
 # -------------------------
-
-echo "[INFO] Generating Sing-box server and client config.json with Bash..."
-
 SINGBOX_DIR="/home/$DEPLOY_USER/singbox"
-SERVER_CONFIG="$SINGBOX_DIR/server/config.json"
-CLIENT_CONFIG="$SINGBOX_DIR/client/config.json"
+TMPLT_DIR="/home/$DEPLOY_USER/template"
 CLIENT_USERS_DIR="$SINGBOX_DIR/client/users"
 
-mkdir -p "$SINGBOX_DIR/server" "$SINGBOX_DIR/client" "$CLIENT_USERS_DIR"
+mkdir -p "$SINGBOX_DIR/server" "$SINGBOX_DIR/client" "$CLIENT_USERS_DIR" "$TMPLT_DIR"
+chown $DEPLOY_USER:$DEPLOY_USER $TMPLT_DIR
 chown $DEPLOY_USER:$DEPLOY_USER $SINGBOX_DIR
 chown $DEPLOY_USER:$DEPLOY_USER $SINGBOX_DIR/server
 chown $DEPLOY_USER:$DEPLOY_USER $SINGBOX_DIR/client
@@ -266,159 +263,135 @@ if [ -z "$REALITY_PRIVATE_KEY" ]; then
     echo "Public : $REALITY_PUBLIC_KEY"
     echo "======================"
 fi
-# ------------------------
-# server/config.json
-# ------------------------
-cat > "$SERVER_CONFIG" <<EOF
+
+DNS_TEMPLATE="$TMPLT_DIR/dns.json"
+TLS_TEMPLATE="$TMPLT_DIR/tls.json"
+ROUTE_TEMPLATE="$TMPLT_DIR/route.json"
+PROTOCOL_TEMPLATE="$TMPLT_DIR/protocols.json"
+ENDPOINT_TEMPLATE="$TMPLT_DIR/endpoints.json"
+cat > "$ENDPOINT_TEMPLATE" <<EOF
+[
+  {
+    "address": [
+      "172.16.0.2/32",
+      "2606:4700:110:8b01:3e09:a4a3:83d4:c9e7/128"
+    ],
+    "listen_port": 0,
+    "mtu": 1420,
+    "peers": [
+      {
+        "address": "engage.cloudflareclient.com",
+        "allowed_ips": [
+          "0.0.0.0/0",
+          "::/0"
+        ],
+        "port": 2408,
+        "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
+        "reserved": [
+          253,
+          77,
+          206
+        ]
+      }
+    ],
+    "private_key": "NSENGZEwfRKQ/hxFd8FVV+/wVcO9576Xwyj5Y6YudKM=",
+    "tag": "warp-2000",
+    "type": "wireguard"
+  },
+  {
+    "accept_routes": false,
+    "auth_key": "$TS_AUTH_KEY",
+    "control_url": "https://controlplane.tailscale.com",
+    "domain_resolver": "local",
+    "exit_node": "$TS_EXIT_NODE",
+    "exit_node_allow_lan_access": true,
+    "hostname": "$TS_HOSTNAME",
+    "state_directory": "/app/db/.tailscale",
+    "system_interface": false,
+    "system_interface_mtu": 1280,
+    "system_interface_name": "tailscale-tun",
+    "tag": "tailscale-ep",
+    "type": "tailscale"
+  }
+]
+EOF
+cat > "$PROTOCOL_TEMPLATE" <<EOF
 {
-  "log": {
-    "level": "info"
+  "vless-reality": {
+	"inbound":{
+		"type": "vless",
+		"listen": "::",
+		"listen_port": $SINGBOX_PORT_VLESS,
+		"tag": "\$tag-vless-in",
+		"tls": "\$tls:tls-reality-in",
+		"users": []
+	},
+    "outbound":{
+		"type": "vless",
+		"tag": "\$tag-vless-out",
+		"server": "${DOMAINLIST[0]}",
+		"server_port": $SINGBOX_PORT_VLESS,
+		"uuid": "",
+		"flow": "xtls-rprx-vision",
+		"tls": "\$tls:tls-reality-out"
+	}
   },
-  "dns": {
-    "servers": [
-      {
-        "type": "local",
-        "tag": "local",
-        "prefer_go": false
-      },
-      {
-        "type": "tailscale",
-        "tag": "dns-ts",
-        "endpoint": "ts-ep"
-      }
-    ],
-    "rules": [
-      {
-        "domain_suffix": [
-          "$TS_DOMAIN_SUFFIX"
-        ],
-        "action": "route",
-        "server": "dns-ts"
-      }
-    ],
-    "strategy": "$DNS_STRATEGY",
-    "final": "local"
+  "tuic":{
+	"inbound":{
+		"type": "tuic",
+		"congestion_control": "bbr",
+		"listen": "::",
+		"listen_port": $SINGBOX_PORT_TUIC,
+		"tag": "\$tag-tuic-in",
+		"tls": "\$tls:tls-in",
+		"users": []
+	},
+	"outbound":{
+		"type": "tuic",
+		"tag": "\$tag-tuic-out",
+		"server": "${DOMAINLIST[0]}",
+		"server_port": $SINGBOX_PORT_TUIC,
+		"uuid": "",
+		"password": "",
+		"congestion_control": "bbr",
+		"tls": "\$tls:tls-out"
+	}
   },
-  "ntp": null,
-  "inbounds": [
-    {
-      "type": "hysteria2",
-      "listen": "::",
-      "listen_port": $SINGBOX_PORT_HYSTERIA2,
-      "masquerade": {
-        "directory": "/file/download",
-        "type": "file"
-      },
-      "obfs": {
-        "password": "1NlXeWE6v0J3S",
-        "type": "salamander"
-      },
-      "tag": "hy2",
-      "tls": {
-        "alpn": [
-          "h3",
-          "h2",
-          "http/1.1"
-        ],
-        "certificate_path": "/app/cert/cert.pem",
-        "enabled": true,
-        "key_path": "/app/cert/privkey.pem",
-        "server_name": "${DOMAINLIST[0]}"
-      },
-      "users": []
-    },
-    {
-      "type": "tuic",
-      "congestion_control": "bbr",
-      "listen": "::",
-      "listen_port": $SINGBOX_PORT_TUIC,
-      "tag": "tuic",
-      "tls": {
-        "alpn": [
-          "h3",
-          "h2",
-          "http/1.1"
-        ],
-        "certificate_path": "/app/cert/cert.pem",
-        "enabled": true,
-        "key_path": "/app/cert/privkey.pem",
-        "server_name": "${DOMAINLIST[0]}"
-      },
-      "users": []
-    },
-    {
-      "type": "vless",
-      "listen": "::",
-      "listen_port": $SINGBOX_PORT_VLESS,
-      "tag": "vless",
-      "tls": {
-        "enabled": true,
-        "reality": {
-          "enabled": true,
-          "handshake": {
-            "server": "$SNI",
-            "server_port": 443
-          },
-          "private_key": "$REALITY_PRIVATE_KEY",
-          "short_id": [
-            "",
-            "$REALITY_SHORT_ID"
-          ]
-        },
-        "server_name": "$SNI"
-      },
-      "transport": {},
-      "users": []
-    }
-  ],
-  "outbounds": [
-    {
-      "tag": "direct",
-      "type": "direct"
-    }
-  ],
-  "services": null,
-  "endpoints": [
-    {
-      "auth_key": "$TS_AUTH_KEY",
-      "control_url": "https://controlplane.tailscale.com",
-      "domain_resolver": "local",
-      "exit_node": "$TS_EXIT_NODE",
-      "exit_node_allow_lan_access": true,
-      "hostname": "$TS_HOSTNAME",
-      "state_directory": "/app/singbox/.tailscale",
-      "tag": "ts-ep",
-      "type": "tailscale"
-    },
-    {
-      "address": [
-        "172.16.0.2/32",
-        "2606:4700:110:8ea0:3891:c140:4cbf:79ac/128"
-      ],
-      "listen_port": 0,
-      "mtu": 1420,
-      "peers": [
-        {
-          "address": "engage.cloudflareclient.com",
-          "allowed_ips": [
-            "0.0.0.0/0",
-            "::/0"
-          ],
-          "port": 2408,
-          "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-          "reserved": [
-            30,
-            161,
-            227
-          ]
-        }
-      ],
-      "private_key": "Lz7HYF+q0o530UzZHzSBuX4zgUy5qdRKakcsaT/0il8=",
-      "tag": "wg-ep",
-      "type": "wireguard"
-    }
-  ],
-  "route": {
+  "hysteria2":{
+	"inbound":{
+		"listen": "::",
+		"listen_port": $SINGBOX_PORT_HYSTERIA2,
+		"masquerade": {
+			"directory": "/file/download",
+			"type": "file"
+		},
+		"obfs": {
+			"password": "1NlXeWE6v0J3S",
+			"type": "salamander"
+		},
+		"tag": "\$tag-hy2-in",
+		"tls": "\$tls:tls-in",
+		"type": "hysteria2",
+		"users": []
+	},
+	"outbound":{
+		"type": "hysteria2",
+		"tag": "\$tag-hy2-out",
+		"server": "${DOMAINLIST[0]}",
+		"server_port": $SINGBOX_PORT_HYSTERIA2,
+		"obfs": {
+			"type": "salamander",
+			"password": "1NlXeWE6v0J3S"
+		},
+		"password": "",
+		"tls": "\$tls:tls-out"
+	}
+  }
+}
+EOF
+cat > "$ROUTE_TEMPLATE" <<EOF
+{
+  "route-server": {
     "rules": [
       {
         "action": "sniff"
@@ -435,153 +408,51 @@ cat > "$SERVER_CONFIG" <<EOF
             ]
           },
           {
-            "ip_cidr": [$TS_HOSTIP]
+            "ip_cidr": [
+              $TS_HOSTIP
+            ]
           }
         ]
       },
       {
         "action": "route",
-        "outbound": "ts-ep",
+        "outbound": "tailscale-ep",
         "type": "logical",
         "mode": "or",
         "rules": [
-          {
-            "domain_suffix": [
-              "$TS_DOMAIN_SUFFIX"
-            ]
-          },
           {
             "ip_cidr": [
               "100.64.0.0/10",
               "fd7a:115c:a1e0::/48"
             ]
+          },
+          {
+            "domain_suffix": [
+              "$TS_DOMAIN_SUFFIX"
+            ]
           }
         ]
       },
       {
-        "ip_cidr": [
-          "100.64.0.0/10"
+        "auth_user": [
+          "tailscale"
         ],
         "action": "route",
-        "outbound": "ts-ep"
+        "outbound": "tailscale-ep"
       },
       {
         "auth_user": [
-          "wg_out"
+          "warp"
         ],
         "action": "route",
-        "outbound": "wg-ep"
-      },
-      {
-        "auth_user": [
-          "ca_out"
-        ],
-        "action": "route",
-        "outbound": "ts-ep"
+        "outbound": "warp-2000"
       }
     ],
-    "default_domain_resolver": "local",
     "rule_set": [],
+    "default_domain_resolver": "local",
     "final": "direct"
   },
-  "experimental": {}
-}
-EOF
-chown $DEPLOY_USER:$DEPLOY_USER $SERVER_CONFIG
-echo "[INFO] server/config.json generated at $SERVER_CONFIG"
-
-# ------------------------
-# client/config.json template
-# ------------------------
-cat > "$CLIENT_CONFIG" <<EOF
-{
-  "log": { "level": "info" },
-  "inbounds": [
-    {
-      "type": "tun",
-      "tag": "tun-in",
-      "interface_name": "tun0",
-      "address": ["172.31.255.2/30"],
-      "auto_route": true,
-      "strict_route": true,
-      "stack": "system"
-    }
-  ],
-  "outbounds": [
-    {
-      "type": "hysteria2",
-	    "tag": "hy2",
-      "server": "${DOMAINLIST[0]}",
-      "server_port": $SINGBOX_PORT_HYSTERIA2,
-	    "obfs": {
-        "type": "salamander",
-        "password": "1NlXeWE6v0J3S"
-      },
-      "password": "mypassword",
-      "tls": { "enabled": true, "server_name": "${DOMAINLIST[0]}" , "alpn": ["h3"]}
-    },
-    {
-      "type": "tuic",
-      "tag": "tuic",
-      "server": "${DOMAINLIST[0]}",
-      "server_port": $SINGBOX_PORT_TUIC,
-      "uuid": "1111-1111-1111-1111-1111",
-      "password": "1111",
-      "congestion_control": "bbr",
-      "tls": {
-        "enabled": true,
-        "server_name": "${DOMAINLIST[0]}",
-        "insecure": false,
-        "alpn": ["h3"]
-      }
-    },
-	{
-      "type": "vless",
-      "tag": "vless",
-      "server": "${DOMAINLIST[0]}",
-      "server_port": $SINGBOX_PORT_VLESS,
-      "uuid": "11111111-2222-3333-4444-555555555555",
-      "flow": "xtls-rprx-vision",
-      "tls": {
-        "enabled": true,
-        "server_name": "$SNI",
-        "reality": {
-          "enabled": true,
-          "public_key": "$REALITY_PUBLIC_KEY",
-          "short_id": "$REALITY_SHORT_ID"
-        },
-        "utls": {
-          "enabled": true,
-          "fingerprint": "chrome"
-        }
-      }
-    },
-	{
-		"type": "urltest",
-		"tag": "auto-proxy",
-		"outbounds": ["hy2", "tuic", "vless"],
-		"url": "https://www.gstatic.com/generate_204",
-		"interval": "5m"
-	},
-    {
-      "type": "direct",
-      "tag": "direct"
-    }
-  ],
-  "dns": {
-    "servers": [
-      { "address": "223.5.5.5", "detour": "direct", "tag": "cn-dns" },
-      { "address": "1.1.1.1", "detour": "auto-proxy", "tag": "proxy-dns" }
-    ],
-    "rules": [
-      { "geosite": ["cn"], "server": "cn-dns" },
-      { "geosite": ["geolocation-!cn"], "server": "proxy-dns" }
-    ],
-    "final": "proxy-dns",
-    "strategy": "prefer_ipv4",
-    "independent_cache": true
-  },
-  "route": {
+  "route-client": {
     "rule_set": [
       {
         "type": "remote",
@@ -612,11 +483,126 @@ cat > "$CLIENT_CONFIG" <<EOF
   }
 }
 EOF
-chown $DEPLOY_USER:$DEPLOY_USER $CLIENT_CONFIG
-echo "[INFO] client/config.json template generated at $CLIENT_CONFIG"
+cat > "$TLS_TEMPLATE" <<EOF
+{
+  "tls-in": {
+	"alpn": [
+		"h3",
+		"h2",
+		"http/1.1"
+	],
+	"certificate_path": "/app/cert/cert.pem",
+	"enabled": true,
+	"key_path": "/app/cert/privkey.pem",
+	"server_name": "${DOMAINLIST[0]}"
+  },
+  "tls-out": {
+	"enabled": true,
+	"server_name": "${DOMAINLIST[0]}",
+	"insecure": false,
+	"alpn": [
+		"h3"
+	]
+  },
+  "tls-reality-in": {
+	"server_name": "$SNI",
+	"enabled": true,
+	"reality": {
+		"enabled": true,
+		"handshake": {
+			"server": "$SNI",
+			"server_port": 443
+		},
+		"private_key": "$REALITY_PRIVATE_KEY",
+        "short_id": [ "$REALITY_SHORT_ID" ]
+	}
+  },
+  "tls-reality-out": {
+	"server_name": "$SNI",
+	"enabled": true,
+	"reality": {
+		"enabled": true,
+		"public_key": "$REALITY_PUBLIC_KEY",
+		"short_id": "$REALITY_SHORT_ID"
+	},
+	"utls": {
+		"enabled": true,
+		"fingerprint": "chrome"
+	}
+  }
+}
+EOF
+cat > "$DNS_TEMPLATE" <<EOF
+{
+  "dns-server": {
+    "servers": [
+      {
+        "type": "local",
+        "tag": "local"
+      },
+      {
+        "type": "tailscale",
+        "tag": "tailscale",
+        "endpoint": "tailscale-ep"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          "$TS_DOMAIN_SUFFIX"
+        ],
+        "action": "route",
+        "server": "tailscale"
+      }
+    ],
+    "strategy": "$DNS_STRATEGY",
+    "final": "local"
+  },
+  "dns-client": {
+    "servers": [
+      {
+        "address": "223.5.5.5",
+        "detour": "direct",
+        "tag": "cn-dns"
+      },
+      {
+        "address": "1.1.1.1",
+        "detour": "auto-proxy",
+        "tag": "proxy-dns"
+      }
+    ],
+    "rules": [
+      {
+        "geosite": [
+          "cn"
+        ],
+        "server": "cn-dns"
+      },
+      {
+        "geosite": [
+          "geolocation-!cn"
+        ],
+        "server": "proxy-dns"
+      }
+    ],
+    "final": "proxy-dns",
+    "strategy": "$DNS_STRATEGY",
+    "independent_cache": true
+  }
+}
+EOF
 
-su - $DEPLOY_USER -c "docker compose up -d"
+chown $DEPLOY_USER:$DEPLOY_USER $DNS_TEMPLATE
+chown $DEPLOY_USER:$DEPLOY_USER $TLS_TEMPLATE
+chown $DEPLOY_USER:$DEPLOY_USER $ROUTE_TEMPLATE
+chown $DEPLOY_USER:$DEPLOY_USER $PROTOCOL_TEMPLATE
+chown $DEPLOY_USER:$DEPLOY_USER $ENDPOINT_TEMPLATE
+echo "[INFO] template generated at $TMPLT_DIR"
+
+#su - $DEPLOY_USER -c "docker compose up -d"
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "Switch to user: su - $DEPLOY_USER"
+echo "run python3 manage_nodes.py --add xxx to create nodes"
+echo "run docker compose up -d"
 echo "run python3 manage_users.py --add xxx --extend days to create users"
