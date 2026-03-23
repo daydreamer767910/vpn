@@ -306,7 +306,7 @@ cat > "$ENDPOINT_TEMPLATE" <<EOF
     "exit_node": "$TS_EXIT_NODE",
     "exit_node_allow_lan_access": true,
     "hostname": "$TS_HOSTNAME",
-    "state_directory": "/app/db/.tailscale",
+    "state_directory": "/app/singbox/.tailscale",
     "system_interface": false,
     "system_interface_mtu": 1280,
     "system_interface_name": "tailscale-tun",
