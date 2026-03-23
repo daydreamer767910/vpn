@@ -132,14 +132,31 @@ def delete_node(nodes, tag):
     return [n for n in nodes if n["tag"] != tag]
 
 
+def upsert_by_tag(arr, item):
+    tag = item.get("tag")
+    if not tag:
+        arr.append(item)
+        return
+
+    for i, x in enumerate(arr):
+        if x.get("tag") == tag:
+            arr[i] = item   # 覆盖
+            return
+
+    arr.append(item)  # 不存在才新增
+
 # -----------------------
 # 构建 config
 # -----------------------
 def build(nodes, protocols_template, tls_template,
           server_config, client_config):
-
-    server_config["inbounds"] = []
-    client_config["outbounds"] = []
+    # 哪些协议需要双向处理（server + client）
+    BIDIRECTIONAL_PROTOCOLS = {
+        "direct",
+        # "socks",
+        # "http",
+        # 以后需要再加
+    }
 
     for node in nodes:
         tag = node["tag"]
@@ -151,7 +168,7 @@ def build(nodes, protocols_template, tls_template,
                 continue
 
             proto = protocols_template[proto_name]
-
+            is_bi = proto_name in BIDIRECTIONAL_PROTOCOLS
             # inbound
             if "inbound" in proto:
                 inbound = copy.deepcopy(proto["inbound"])
@@ -160,38 +177,58 @@ def build(nodes, protocols_template, tls_template,
                 if i < len(ports) and "listen_port" in inbound:
                     inbound["listen_port"] = ports[i]
 
-                server_config["inbounds"].append(inbound)
-
+                upsert_by_tag(server_config["inbounds"], inbound)
+                if is_bi:
+                    upsert_by_tag(client_config["inbounds"], inbound)
             # outbound
             if "outbound" in proto:
                 outbound = copy.deepcopy(proto["outbound"])
-
-                outbound["server"] = os.environ.get(
-                    "VPS_HOST", outbound.get("server")
-                )
 
                 outbound = fill_placeholders(outbound, tls_template, tag)
 
                 if i < len(ports) and "server_port" in outbound:
                     outbound["server_port"] = ports[i]
 
-                client_config["outbounds"].append(outbound)
+                #client_config["outbounds"].append(outbound)
+                upsert_by_tag(client_config["outbounds"],outbound)
+                if is_bi:
+                    #server_config["outbounds"].append(outbound)
+                    upsert_by_tag(server_config["outbounds"],outbound)
 
 def ensure_defaults(config):
     # ---------- log ----------
     if "log" not in config:
         config["log"] = {"level": "info"}
 
-    # ---------- direct outbound ----------
-    outbounds = config.setdefault("outbounds", [])
 
-    exists = any(o.get("tag") == "direct" for o in outbounds)
+# -----------------------
+# 构建客户端 Selector / URLTest
+# -----------------------
+def build_dynamic_outbounds(client_config):
+    # 收集普通节点 tag
+    all_tags = [o.get("tag") for o in client_config.get("outbounds", []) if o.get("tag") != "direct"]
 
-    if not exists:
-        outbounds.append({
-            "tag": "direct",
-            "type": "direct"
-        })
+    if not all_tags:
+        return  # 没有节点就不生成
+
+    # ----- Selector -----
+    selector_outbound = {
+        "tag": "auto-selector",
+        "type": "Selector",
+        "outbounds": all_tags,
+        "strategy": "priority"
+    }
+    client_config["outbounds"].append(selector_outbound)
+
+    # ----- URLTest -----
+    urltest_outbound = {
+        "tag": "auto-proxy",
+        "type": "urltest",
+        "outbounds": all_tags,
+        "url": "http://www.google.com/generate_204",
+        "interval": 300
+    }
+    client_config["outbounds"].append(urltest_outbound)
 
 # -----------------------
 # 防火墙同步（UFW）
@@ -215,7 +252,7 @@ def apply_firewall(nodes):
 
 def lint_config(server_config, client_config):
     errors = []
-
+    
     # -----------------------
     # 收集 tags
     # -----------------------
@@ -266,7 +303,7 @@ def lint_config(server_config, client_config):
                 errors.append(f"❌ dns detour 不存在: {detour}")
 
     check_dns(server_config.get("dns"))
-    #check_dns(client_config.get("dns"))
+    check_dns(client_config.get("dns"))
 
     # -----------------------
     # 检查 endpoints
@@ -376,6 +413,8 @@ def main():
         build(nodes, protocols_template, tls_template,
             server_config, client_config)
 
+        build_dynamic_outbounds(client_config)
+
         save_json(server_path, server_config)
         save_json(client_path, client_config)
         print("✅ 已更新配置")
@@ -386,6 +425,8 @@ def main():
         print("✅ 完成防火墙更新")
 
     if args.lint:
+        server_config = load_json(server_path)
+        client_config = load_json(client_path)
         lint_config(server_config, client_config)
         return
 

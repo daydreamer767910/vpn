@@ -317,6 +317,9 @@ cat > "$ENDPOINT_TEMPLATE" <<EOF
 EOF
 cat > "$PROTOCOL_TEMPLATE" <<EOF
 {
+  "direct":{
+    "outbound":{ "tag": "direct", "type": "direct" }
+  },
   "vless-reality": {
 	"inbound":{
 		"type": "vless",
