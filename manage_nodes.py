@@ -11,7 +11,17 @@ PORT_START = 10000
 PORT_END = 20000
 
 NODES_PATH = BASE_DIR / "singbox/nodes.json"
+SPECIAL_OUTBOUNDS = {
+    "direct",
+    "block",
+    "tor",
+    "selector",
+    "urltest",
+}
 
+SPECIAL_INBOUNDS = {
+    "tun",
+}
 
 # -----------------------
 # 工具
@@ -64,64 +74,60 @@ def fill_placeholders(obj, tls_templates=None, node_tag=None):
 
 
 # -----------------------
-# 端口管理
+# 端口生成（无状态）
 # -----------------------
-def collect_used_ports(nodes):
-    used = set()
-    for n in nodes:
-        for p in n.get("ports", []):
-            used.add(p)
-    return used
+def generate_port_map(nodes, protocols_template):
+    port = PORT_START
+    port_map = {}
 
+    nodes_sorted = sorted(nodes, key=lambda x: x["tag"])
 
-def allocate_ports(nodes, count):
-    used = collect_used_ports(nodes)
-    ports = []
-    p = PORT_START
+    for node in nodes_sorted:
+        tag = node["tag"]
+        protos = node["protocols"]
 
-    while len(ports) < count and p <= PORT_END:
-        if p not in used:
-            ports.append(p)
-            used.add(p)
-        p += 1
+        for idx, proto_name in enumerate(protos):
+            proto = protocols_template.get(proto_name, {})
 
-    if len(ports) < count:
-        raise RuntimeError("端口不够用")
+            need_port = False
 
-    return ports
+            if "inbound" in proto and "listen_port" in proto["inbound"]:
+                need_port = True
+            elif "outbound" in proto and "server_port" in proto["outbound"]:
+                need_port = True
+
+            if not need_port:
+                continue
+
+            if port > PORT_END:
+                raise RuntimeError("端口耗尽")
+
+            port_map[(tag, idx)] = port
+            port += 1
+
+    return port_map
 
 
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(nodes, tag, protocols, ports):
+def add_node(nodes, tag, protocols):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
 
-    if not ports:
-        ports = allocate_ports(nodes, len(protocols))
-        print(f"⚡ 自动端口 {ports}")
-
     nodes.append({
         "tag": tag,
-        "protocols": protocols,
-        "ports": ports
+        "protocols": protocols
     })
     return nodes
 
 
-def update_node(nodes, tag, protocols=None, ports=None):
+def update_node(nodes, tag, protocols=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
                 n["protocols"] = protocols
-                if not ports:
-                    ports = allocate_ports(nodes, len(protocols))
-
-            if ports:
-                n["ports"] = ports
-
             return nodes
 
     print(f"❌ 不存在 {tag}")
@@ -140,78 +146,99 @@ def upsert_by_tag(arr, item):
 
     for i, x in enumerate(arr):
         if x.get("tag") == tag:
-            arr[i] = item   # 覆盖
+            arr[i] = item
             return
 
-    arr.append(item)  # 不存在才新增
+    arr.append(item)
+
 
 # -----------------------
 # 构建 config
 # -----------------------
 def build(nodes, protocols_template, tls_template,
           server_config, client_config):
-    # 哪些协议需要双向处理（server + client）
-    BIDIRECTIONAL_PROTOCOLS = {
-        "direct",
-        # "socks",
-        # "http",
-        # 以后需要再加
-    }
+
+    port_map = generate_port_map(nodes, protocols_template)
 
     for node in nodes:
         tag = node["tag"]
         protos = node["protocols"]
-        ports = node["ports"]
 
         for i, proto_name in enumerate(protos):
             if proto_name not in protocols_template:
                 continue
-
+            if proto_name in SPECIAL_OUTBOUNDS or proto_name in SPECIAL_INBOUNDS:
+                continue
             proto = protocols_template[proto_name]
-            is_bi = proto_name in BIDIRECTIONAL_PROTOCOLS
+
             # inbound
             if "inbound" in proto:
                 inbound = copy.deepcopy(proto["inbound"])
                 inbound = fill_placeholders(inbound, tls_template, tag)
 
-                if i < len(ports) and "listen_port" in inbound:
-                    inbound["listen_port"] = ports[i]
+                port = port_map.get((tag, i))
+                if port and "listen_port" in inbound:
+                    inbound["listen_port"] = port
 
                 upsert_by_tag(server_config["inbounds"], inbound)
-                if is_bi:
-                    upsert_by_tag(client_config["inbounds"], inbound)
+
             # outbound
             if "outbound" in proto:
                 outbound = copy.deepcopy(proto["outbound"])
-
                 outbound = fill_placeholders(outbound, tls_template, tag)
 
-                if i < len(ports) and "server_port" in outbound:
-                    outbound["server_port"] = ports[i]
+                port = port_map.get((tag, i))
+                if port and "server_port" in outbound:
+                    outbound["server_port"] = port
 
-                #client_config["outbounds"].append(outbound)
-                upsert_by_tag(client_config["outbounds"],outbound)
-                if is_bi:
-                    #server_config["outbounds"].append(outbound)
-                    upsert_by_tag(server_config["outbounds"],outbound)
+                upsert_by_tag(client_config["outbounds"], outbound)
 
-def ensure_defaults(config):
-    # ---------- log ----------
+
+def build_defaults(config):
     if "log" not in config:
         config["log"] = {"level": "info"}
 
+def apply_patches(server_config, client_config, protocols_template, tls_template):
+    # -------- direct --------
+    if "direct" in protocols_template:
+        proto = protocols_template["direct"]
 
+        if "outbound" in proto:
+            outbound = copy.deepcopy(proto["outbound"])
+            upsert_by_tag(client_config["outbounds"], outbound)
+            upsert_by_tag(server_config["outbounds"], outbound)
+
+    # -------- block --------
+    if "block" in protocols_template:
+        proto = protocols_template["block"]
+
+        if "outbound" in proto:
+            outbound = copy.deepcopy(proto["outbound"])
+            upsert_by_tag(client_config["outbounds"], outbound)
+            upsert_by_tag(server_config["outbounds"], outbound)
+
+    # -------- tun（只客户端）--------
+    if "tun" in protocols_template:
+        proto = protocols_template["tun"]
+
+        if "inbound" in proto:
+            inbound = copy.deepcopy(proto["inbound"])
+            inbound = fill_placeholders(inbound, tls_template, None)
+            upsert_by_tag(client_config["inbounds"], inbound)
+
+    # -------- selector / urltest --------
+    build_dynamic_outbounds(client_config)
+    build_defaults(server_config)
+    build_defaults(client_config)
 # -----------------------
-# 构建客户端 Selector / URLTest
+# Selector / URLTest
 # -----------------------
 def build_dynamic_outbounds(client_config):
-    # 收集普通节点 tag
     all_tags = [o.get("tag") for o in client_config.get("outbounds", []) if o.get("tag") != "direct"]
 
     if not all_tags:
-        return  # 没有节点就不生成
+        return
 
-    # ----- Selector -----
     selector_outbound = {
         "tag": "auto-selector",
         "type": "Selector",
@@ -220,7 +247,6 @@ def build_dynamic_outbounds(client_config):
     }
     client_config["outbounds"].append(selector_outbound)
 
-    # ----- URLTest -----
     urltest_outbound = {
         "tag": "auto-proxy",
         "type": "urltest",
@@ -230,32 +256,61 @@ def build_dynamic_outbounds(client_config):
     }
     client_config["outbounds"].append(urltest_outbound)
 
+def run_manage_users():
+    script = BASE_DIR / "manage_users.py"
+
+    if not script.exists():
+        print("⚠️ 未找到 manage_users.py，跳过用户同步")
+        return
+
+    print("🔄 同步用户配置...")
+
+    ret = os.system(f"python3 {script} --refresh")
+
+    if ret != 0:
+        print("❌ 用户同步失败")
+    else:
+        print("✅ 用户同步完成")
 # -----------------------
-# 防火墙同步（UFW）
+# 防火墙
 # -----------------------
-def apply_firewall(nodes):
-    ports = sorted(collect_used_ports(nodes))
+def collect_ports_from_config(server_config):
+    ports = set()
+
+    for i in server_config.get("inbounds", []):
+        p = i.get("listen_port")
+        if p:
+            ports.add(p)
+
+    return ports
+
+
+def apply_firewall(server_config):
+    ports = sorted(collect_ports_from_config(server_config))
 
     print("🔥 同步防火墙...")
 
     os.system("ufw --force reset")
     os.system("ufw default deny incoming")
     os.system("ufw allow 22/tcp")
+    os.system("ufw allow 80/tcp")
+    os.system("ufw allow 443/tcp")
 
     for p in ports:
-        os.system(f"ufw allow {p}")
+        os.system(f"ufw allow {p}/tcp")
         os.system(f"ufw allow {p}/udp")
 
     os.system("ufw --force enable")
 
-    print(f"✅ 已开放端口: {ports}")
+    print(f"✅ 已开放端口: {sorted(ports)}")
 
+
+# -----------------------
+# Lint
+# -----------------------
 def lint_config(server_config, client_config):
     errors = []
-    
-    # -----------------------
-    # 收集 tags
-    # -----------------------
+
     in_tags = set()
     out_tags = set()
 
@@ -271,14 +326,10 @@ def lint_config(server_config, client_config):
             errors.append(f"❌ outbound tag 重复: {tag}")
         out_tags.add(tag)
 
-    # endpoints
     for ep in server_config.get("endpoints", []):
         if "tag" in ep:
             out_tags.add(ep["tag"])
 
-    # -----------------------
-    # 检查 route 引用
-    # -----------------------
     def check_route(route):
         if not route:
             return
@@ -290,13 +341,9 @@ def lint_config(server_config, client_config):
     check_route(server_config.get("route"))
     check_route(client_config.get("route"))
 
-    # -----------------------
-    # 检查 dns
-    # -----------------------
     def check_dns(dns):
         if not dns:
             return
-
         for s in dns.get("servers", []):
             detour = s.get("detour")
             if detour and detour not in out_tags:
@@ -305,18 +352,6 @@ def lint_config(server_config, client_config):
     check_dns(server_config.get("dns"))
     check_dns(client_config.get("dns"))
 
-    # -----------------------
-    # 检查 endpoints
-    # -----------------------
-    endpoints = server_config.get("endpoints", [])
-    for ep in endpoints:
-        ob = ep.get("outbound")
-        if ob and ob not in out_tags:
-            errors.append(f"❌ endpoint 引用了不存在的 outbound: {ob}")
-
-    # -----------------------
-    # 检查端口冲突
-    # -----------------------
     ports = set()
     for i in server_config.get("inbounds", []):
         p = i.get("listen_port")
@@ -325,14 +360,12 @@ def lint_config(server_config, client_config):
                 errors.append(f"❌ 端口冲突: {p}")
             ports.add(p)
 
-    # -----------------------
-    # 输出结果
-    # -----------------------
     if errors:
         print("\n".join(errors))
         raise RuntimeError("❌ 配置检查失败")
     else:
         print("✅ 配置检查通过")
+
 
 # -----------------------
 # 主函数
@@ -343,8 +376,7 @@ def main():
     parser.add_argument("--update", nargs="*")
     parser.add_argument("--delete", nargs="*")
     parser.add_argument("--protocols", nargs="*")
-    parser.add_argument("--server_port", nargs="*")
-    parser.add_argument("--apply-firewall", action="store_true")
+    parser.add_argument("--firewall", action="store_true")
     parser.add_argument("--lint", action="store_true")
 
     args = parser.parse_args()
@@ -374,8 +406,6 @@ def main():
         "route": route_template.get("route-client", {}),
         "dns": dns_template.get("dns-client", {})
     }
-    ensure_defaults(server_config)
-    ensure_defaults(client_config)
 
     nodes = load_nodes()
     old_nodes = copy.deepcopy(nodes)
@@ -387,19 +417,13 @@ def main():
     else:
         protocols = list(protocols_template.keys())
 
-    ports = []
-    if args.server_port:
-        for p in args.server_port:
-            ports.extend([int(x) for x in p.split(",")])
-
-    # 操作
     if args.add:
         for t in args.add:
-            nodes = add_node(nodes, t, protocols, ports)
+            nodes = add_node(nodes, t, protocols)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(nodes, t, protocols, ports)
+            nodes = update_node(nodes, t, protocols)
 
     if args.delete:
         for t in args.delete:
@@ -409,26 +433,27 @@ def main():
     if changed:
         save_nodes(nodes)
 
-        # 构建 config
         build(nodes, protocols_template, tls_template,
-            server_config, client_config)
+              server_config, client_config)
 
-        build_dynamic_outbounds(client_config)
+        apply_patches(server_config, client_config,
+              protocols_template, tls_template)
 
         save_json(server_path, server_config)
         save_json(client_path, client_config)
         print("✅ 已更新配置")
 
-    # 防火墙
-    if args.apply_firewall:
-        apply_firewall(nodes)
-        print("✅ 完成防火墙更新")
+        run_manage_users()
+
+    if args.firewall:
+        server_config = load_json(server_path)
+        apply_firewall(server_config)
 
     if args.lint:
         server_config = load_json(server_path)
         client_config = load_json(client_path)
         lint_config(server_config, client_config)
-        return
+
 
 if __name__ == "__main__":
     main()

@@ -320,24 +320,37 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
   "direct":{
     "outbound":{ "tag": "direct", "type": "direct" }
   },
+  "tun":{
+    "inbound":{
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": [
+        "172.18.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "mtu": 9000,
+      "auto_route": true
+    }
+  },
   "vless-reality": {
-	"inbound":{
-		"type": "vless",
-		"listen": "::",
-		"listen_port": $SINGBOX_PORT_VLESS,
-		"tag": "\$tag-vless-in",
-		"tls": "\$tls:tls-reality-in",
-		"users": []
-	},
+    "inbound":{
+      "type": "vless",
+      "listen": "::",
+      "listen_port": $SINGBOX_PORT_VLESS,
+      "tag": "\$tag-vless-in",
+      "tls": "\$tls:tls-reality-in",
+      "users": []
+    },
     "outbound":{
-		"type": "vless",
-		"tag": "\$tag-vless-out",
-		"server": "${DOMAINLIST[0]}",
-		"server_port": $SINGBOX_PORT_VLESS,
-		"uuid": "",
-		"flow": "xtls-rprx-vision",
-		"tls": "\$tls:tls-reality-out"
-	}
+      "type": "vless",
+      "tag": "\$tag-vless-out",
+      "server": "${DOMAINLIST[0]}",
+      "server_port": $SINGBOX_PORT_VLESS,
+      "uuid": "",
+      "flow": "xtls-rprx-vision",
+      "tls": "\$tls:tls-reality-out"
+    }
   },
   "tuic":{
 	"inbound":{
