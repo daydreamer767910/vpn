@@ -365,6 +365,34 @@ def lint_config(server_config, client_config):
     else:
         print("✅ 配置检查通过")
 
+def show_config(server_config, client_config):
+    print("\n=== Server Inbounds ===")
+    for i in server_config.get("inbounds", []):
+        tag = i.get("tag")
+        proto = i.get("type")
+        port = i.get("listen_port")
+        print(f"tag={tag:<20} type={proto:<12} port={port}")
+
+    print("\n=== Server Outbounds ===")
+    for o in server_config.get("outbounds", []):
+        tag = o.get("tag")
+        proto = o.get("type")
+        port = o.get("server_port")
+        print(f"tag={tag:<20} type={proto:<12} port={port}")
+
+    print("\n=== Client Inbounds ===")
+    for i in client_config.get("inbounds", []):
+        tag = i.get("tag")
+        proto = i.get("type")
+        port = i.get("listen_port")
+        print(f"tag={tag:<20} type={proto:<12} port={port}")
+
+    print("\n=== Client Outbounds ===")
+    for o in client_config.get("outbounds", []):
+        tag = o.get("tag")
+        proto = o.get("type")
+        port = o.get("server_port")
+        print(f"tag={tag:<20} type={proto:<12} port={port}")
 
 # -----------------------
 # 主函数
@@ -377,6 +405,7 @@ def main():
     parser.add_argument("--protocols", nargs="*")
     parser.add_argument("--firewall", action="store_true")
     parser.add_argument("--lint", action="store_true")
+    parser.add_argument("--list", action="store_true")
 
     args = parser.parse_args()
 
@@ -453,6 +482,10 @@ def main():
         client_config = load_json(client_path)
         lint_config(server_config, client_config)
 
+    if args.list:
+        server_config = load_json(server_path)
+        client_config = load_json(client_path)
+        show_config(server_config, client_config)
 
 if __name__ == "__main__":
     main()
