@@ -157,7 +157,8 @@ services:
       - ${CERT_DST}:/app/cert:ro
       - ./singbox/server:/app/singbox
     ports:
-      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END"
+      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END/tcp"
+      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END/udp"
     dns:
       - 1.1.1.1
       - 8.8.8.8
