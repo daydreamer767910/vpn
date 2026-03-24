@@ -95,28 +95,6 @@ rsync -a \
 #rsync -a --exclude='deploy_all.sh' --exclude='.git' --exclude='*.md' ./ /home/$DEPLOY_USER/
 chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 
-# -------------------------
-# 配置防火墙
-# -------------------------
-echo "[INFO] Configuring UFW..."
-echo "[INFO] Resetting UFW..."
-# 清理所有 UFW 规则并禁用
-ufw --force reset
-echo "[INFO] Setting default policies..."
-# 默认拒绝所有传入，允许所有传出
-ufw default deny incoming
-ufw default allow outgoing
-echo "[INFO] Allowing required ports..."
-# 允许需要的端口
-for port in "${TCP_PORTS[@]}"; do
-    ufw allow "$port"/tcp
-done
-for port in "${UDP_PORTS[@]}"; do
-    ufw allow "$port"/udp
-done
-if ! ufw status | grep -q "Status: active"; then
-    ufw --force enable
-fi
 
 # ================================
 # 申请证书, 成功后再复制
@@ -179,12 +157,7 @@ services:
       - ${CERT_DST}:/app/cert:ro
       - ./singbox/server:/app/singbox
     ports:
-      # VLESS / Reality
-      - '${SINGBOX_PORT_VLESS}:${SINGBOX_PORT_VLESS}/tcp'
-      # TUIC
-      - '${SINGBOX_PORT_TUIC}:${SINGBOX_PORT_TUIC}/udp'
-      # Hysteria2
-      - '${SINGBOX_PORT_HYSTERIA2}:${SINGBOX_PORT_HYSTERIA2}/udp'
+      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END"
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -250,19 +223,21 @@ chown $DEPLOY_USER:$DEPLOY_USER $SINGBOX_DIR/server
 chown $DEPLOY_USER:$DEPLOY_USER $SINGBOX_DIR/client
 chown $DEPLOY_USER:$DEPLOY_USER $CLIENT_USERS_DIR
 
-if [ -z "$REALITY_PRIVATE_KEY" ]; then
-    echo "[INFO] Generating Reality keypair via Docker..."
-    
-    KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate reality-keypair)
-    
-    REALITY_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
-    REALITY_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
 
-    echo "==== Reality Keys ===="
-    echo "Private: $REALITY_PRIVATE_KEY"
-    echo "Public : $REALITY_PUBLIC_KEY"
-    echo "======================"
-fi
+echo "[INFO] Generating Reality keypair via Docker..."
+
+KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate reality-keypair)
+
+REALITY_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
+REALITY_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
+REALITY_SHORT_ID=$(openssl rand -hex 8 | xxd -r -p | base32 | tr -d '=' | tr 'A-Z' 'a-z')
+
+echo "==== Reality Keys ===="
+echo "Private: $REALITY_PRIVATE_KEY"
+echo "Public : $REALITY_PUBLIC_KEY"
+echo "short id: $REALITY_SHORT_ID"
+echo "======================"
+
 
 DNS_TEMPLATE="$TMPLT_DIR/dns.json"
 TLS_TEMPLATE="$TMPLT_DIR/tls.json"
@@ -337,7 +312,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
     "inbound":{
       "type": "vless",
       "listen": "::",
-      "listen_port": $SINGBOX_PORT_VLESS,
+      "listen_port": 8443,
       "tag": "\$tag-vless-in",
       "tls": "\$tls:tls-reality-in",
       "users": []
@@ -346,7 +321,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
       "type": "vless",
       "tag": "\$tag-vless-out",
       "server": "${DOMAINLIST[0]}",
-      "server_port": $SINGBOX_PORT_VLESS,
+      "server_port": 8443,
       "uuid": "",
       "flow": "xtls-rprx-vision",
       "tls": "\$tls:tls-reality-out"
@@ -357,7 +332,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
 		"type": "tuic",
 		"congestion_control": "bbr",
 		"listen": "::",
-		"listen_port": $SINGBOX_PORT_TUIC,
+		"listen_port": 443,
 		"tag": "\$tag-tuic-in",
 		"tls": "\$tls:tls-in",
 		"users": []
@@ -366,7 +341,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
 		"type": "tuic",
 		"tag": "\$tag-tuic-out",
 		"server": "${DOMAINLIST[0]}",
-		"server_port": $SINGBOX_PORT_TUIC,
+		"server_port": 443,
 		"uuid": "",
 		"password": "",
 		"congestion_control": "bbr",
@@ -376,7 +351,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
   "hysteria2":{
 	"inbound":{
 		"listen": "::",
-		"listen_port": $SINGBOX_PORT_HYSTERIA2,
+		"listen_port": 8443,
 		"masquerade": {
 			"directory": "/file/download",
 			"type": "file"
@@ -394,7 +369,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
 		"type": "hysteria2",
 		"tag": "\$tag-hy2-out",
 		"server": "${DOMAINLIST[0]}",
-		"server_port": $SINGBOX_PORT_HYSTERIA2,
+		"server_port": 8443,
 		"obfs": {
 			"type": "salamander",
 			"password": "1NlXeWE6v0J3S"
@@ -615,10 +590,10 @@ chown $DEPLOY_USER:$DEPLOY_USER $PROTOCOL_TEMPLATE
 chown $DEPLOY_USER:$DEPLOY_USER $ENDPOINT_TEMPLATE
 echo "[INFO] template generated at $TMPLT_DIR"
 
-#su - $DEPLOY_USER -c "docker compose up -d"
+su - $DEPLOY_USER -c "docker compose up -d"
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "Switch to user: su - $DEPLOY_USER"
 echo "run python3 manage_nodes.py --add xxx to create nodes"
-echo "run docker compose up -d"
+echo "run sudo python3 manage_nodes.py --firewall to allow the ports"
 echo "run python3 manage_users.py --add xxx --extend days to create users"
