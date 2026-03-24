@@ -241,9 +241,9 @@ def build_dynamic_outbounds(client_config):
 
     selector_outbound = {
         "tag": "auto-selector",
-        "type": "Selector",
         "outbounds": all_tags,
-        "strategy": "priority"
+        "default": all_tags[0],
+        "interrupt_exist_connections": False,
     }
     client_config["outbounds"].append(selector_outbound)
 
@@ -252,7 +252,6 @@ def build_dynamic_outbounds(client_config):
         "type": "urltest",
         "outbounds": all_tags,
         "url": "http://www.google.com/generate_204",
-        "interval": 300
     }
     client_config["outbounds"].append(urltest_outbound)
 
