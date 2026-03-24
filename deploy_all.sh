@@ -230,7 +230,7 @@ KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate reality-keypair)
 
 REALITY_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
 REALITY_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
-REALITY_SHORT_ID=$(openssl rand -hex 8 | xxd -r -p | base32 | tr -d '=' | tr 'A-Z' 'a-z')
+REALITY_SHORT_ID=$(openssl rand -hex 8)
 
 echo "==== Reality Keys ===="
 echo "Private: $REALITY_PRIVATE_KEY"
