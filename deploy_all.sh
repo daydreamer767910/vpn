@@ -323,7 +323,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
       "tag": "\$tag-vless-out",
       "server": "${DOMAINLIST[0]}",
       "server_port": 8443,
-      "uuid": "",
+      "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
       "flow": "xtls-rprx-vision",
       "tls": "\$tls:tls-reality-out"
     }
@@ -343,8 +343,8 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
 		"tag": "\$tag-tuic-out",
 		"server": "${DOMAINLIST[0]}",
 		"server_port": 443,
-		"uuid": "",
-		"password": "",
+		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
+		"password": "123456",
 		"congestion_control": "bbr",
 		"tls": "\$tls:tls-out"
 	}
@@ -375,7 +375,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
 			"type": "salamander",
 			"password": "1NlXeWE6v0J3S"
 		},
-		"password": "",
+		"password": "123456",
 		"tls": "\$tls:tls-out"
 	}
   }

@@ -111,23 +111,41 @@ def generate_port_map(nodes, protocols_template):
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(nodes, tag, protocols):
+def add_node(nodes, tag, protocols, type_="normal", next_=None, exit_server=None, exit_port=None):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
 
-    nodes.append({
+    node = {
         "tag": tag,
-        "protocols": protocols
-    })
+        "protocols": protocols,
+        "type": type_,
+    }
+
+    if type_ == "relay":
+        node["next"] = next_
+    elif type_ == "exit":
+        node["exit_server"] = exit_server
+        node["exit_port"] = exit_port
+
+    nodes.append(node)
     return nodes
 
 
-def update_node(nodes, tag, protocols=None):
+def update_node(nodes, tag, protocols=None, type_=None, next_=None, exit_server=None, exit_port=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
                 n["protocols"] = protocols
+            if type_:
+                n["type"] = type_
+            if type_ == "relay" and next_:
+                n["next"] = next_
+            if type_ == "exit":
+                if exit_server:
+                    n["exit_server"] = exit_server
+                if exit_port:
+                    n["exit_port"] = exit_port
             return nodes
 
     print(f"❌ 不存在 {tag}")
@@ -157,11 +175,20 @@ def upsert_by_tag(arr, item):
 # -----------------------
 def build(nodes, protocols_template, tls_template,
           server_config, client_config):
+    """
+    构建配置：
+      - normal 节点A类:生成 inbound ,build config for both server and client
+      - relay 节点B类:生成 inbound ,build config for both server and client
+      - exit 节点C类:生成 outbound,build config for server only
+    """
 
     port_map = generate_port_map(nodes, protocols_template)
-
+    
     for node in nodes:
+        node["inbound_tags"] = []
+        node["outbound_tags"] = []
         tag = node["tag"]
+        type_ = node.get("type", "normal")  # 默认为 normal
         protos = node["protocols"]
 
         for i, proto_name in enumerate(protos):
@@ -172,7 +199,7 @@ def build(nodes, protocols_template, tls_template,
             proto = protocols_template[proto_name]
 
             # inbound
-            if "inbound" in proto:
+            if type_ in ("normal", "relay") and "inbound" in proto:
                 inbound = copy.deepcopy(proto["inbound"])
                 inbound = fill_placeholders(inbound, tls_template, tag)
 
@@ -181,17 +208,24 @@ def build(nodes, protocols_template, tls_template,
                     inbound["listen_port"] = port
 
                 upsert_by_tag(server_config["inbounds"], inbound)
-
+                node["inbound_tags"].append(inbound["tag"])
             # outbound
             if "outbound" in proto:
                 outbound = copy.deepcopy(proto["outbound"])
                 outbound = fill_placeholders(outbound, tls_template, tag)
 
-                port = port_map.get((tag, i))
-                if port and "server_port" in outbound:
-                    outbound["server_port"] = port
-
-                upsert_by_tag(client_config["outbounds"], outbound)
+                if type_ == "exit":
+                    if "server" in outbound:
+                        outbound["server"] = node.get("exit_server")
+                    if "server_port" in outbound:
+                        outbound["server_port"] = node.get("exit_port")
+                    upsert_by_tag(server_config["outbounds"], outbound)
+                    node["outbound_tags"].append(outbound["tag"])
+                else:
+                    port = port_map.get((tag, i))
+                    if port and "server_port" in outbound:
+                        outbound["server_port"] = port
+                    upsert_by_tag(client_config["outbounds"], outbound)
 
 
 def build_defaults(config):
@@ -241,6 +275,7 @@ def build_dynamic_outbounds(client_config):
 
     selector_outbound = {
         "tag": "auto-selector",
+        "type": "selector",
         "outbounds": all_tags,
         "default": all_tags[0],
         "interrupt_exist_connections": False,
@@ -254,6 +289,53 @@ def build_dynamic_outbounds(client_config):
         "url": "http://www.google.com/generate_204",
     }
     client_config["outbounds"].append(urltest_outbound)
+
+def apply_relay(nodes, server_config):
+    """
+    为类型为 relay 的节点生成 route 规则：
+      - 节点自身必须有 inbound_tags
+      - next 节点必须存在 outbound_tags
+    """
+    node_map = {n["tag"]: n for n in nodes}
+    route = server_config.setdefault("route", {})
+    rules = route.setdefault("rules", [])
+
+    for node in nodes:
+        if node.get("type") != "relay":
+            continue
+
+        src_tag = node["tag"]
+        dst_tag = node.get("next")
+
+        if not dst_tag:
+            raise RuntimeError(f"❌ relay 节点缺少 next: {src_tag}")
+
+        if dst_tag not in node_map:
+            raise RuntimeError(f"❌ relay 目标不存在: {dst_tag}")
+
+        if dst_tag == src_tag:
+            raise RuntimeError(f"❌ relay 不能指向自己: {src_tag}")
+
+        src_node = node
+        dst_node = node_map[dst_tag]
+
+        if not src_node.get("inbound_tags"):
+            raise RuntimeError(f"❌ relay 节点没有 inbound_tags: {src_tag}")
+
+        if not dst_node.get("outbound_tags"):
+            raise RuntimeError(f"❌ 目标节点没有 outbound_tags: {dst_tag}")
+
+        # 简单规则：每个 relay 节点默认只用第一个 inbound_tag 对应第一个 outbound_tag
+        src_in_tag = src_node["inbound_tags"]
+        dst_out_tag = dst_node["outbound_tags"][0]
+
+        # 插入 route 规则
+        rule = {
+            "action": "route",
+            "inbound": src_in_tag,
+            "outbound": dst_out_tag
+        }
+        rules.insert(0, rule)  # 优先级靠前
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -328,6 +410,11 @@ def lint_config(server_config, client_config):
     for ep in server_config.get("endpoints", []):
         if "tag" in ep:
             out_tags.add(ep["tag"])
+
+    for o in server_config.get("outbounds", []):
+        tag = o.get("tag")
+        if tag:
+            out_tags.add(tag)
 
     def check_route(route):
         if not route:
@@ -406,6 +493,14 @@ def main():
     parser.add_argument("--firewall", action="store_true")
     parser.add_argument("--lint", action="store_true")
     parser.add_argument("--list", action="store_true")
+    # 新增节点类型参数
+    parser.add_argument("--type", choices=["normal", "relay", "exit"], default="normal",
+                        help="节点类型: normal/relay/exit")
+    # relay 特有字段
+    parser.add_argument("--next", help="relay 节点的下一跳目标 tag")
+    # exit 特有字段
+    parser.add_argument("--exit-server", help="exit 节点远端 server 地址")
+    parser.add_argument("--exit-port", type=int, help="exit 节点远端 server 端口")
 
     args = parser.parse_args()
 
@@ -446,12 +541,16 @@ def main():
         protocols = list(protocols_template.keys())
 
     if args.add:
+        if args.type == "relay" and not args.next:
+            raise RuntimeError("❌ relay 节点必须指定 --next")
+        if args.type == "exit" and (not args.exit_server or not args.exit_port):
+            raise RuntimeError("❌ exit 节点必须指定 --exit-server 和 --exit-port")
         for t in args.add:
-            nodes = add_node(nodes, t, protocols)
+            nodes = add_node(nodes, t, protocols, args.type, args.next, args.exit_server, args.exit_port)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(nodes, t, protocols)
+            nodes = update_node(nodes, t, protocols, args.type, args.next, args.exit_server, args.exit_port)
 
     if args.delete:
         for t in args.delete:
@@ -459,14 +558,15 @@ def main():
 
     changed = (old_nodes != nodes)
     if changed:
-        save_nodes(nodes)
-
         build(nodes, protocols_template, tls_template,
               server_config, client_config)
 
         apply_patches(server_config, client_config,
               protocols_template, tls_template)
 
+        apply_relay(nodes, server_config)
+
+        save_nodes(nodes)
         save_json(server_path, server_config)
         save_json(client_path, client_config)
         print("✅ 已更新配置")
