@@ -309,7 +309,7 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
       "auto_route": true
     }
   },
-  "vless-reality": {
+  "vless": {
     "inbound":{
       "type": "vless",
       "listen": "::",

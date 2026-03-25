@@ -4,6 +4,10 @@ import json
 import copy
 import argparse
 from pathlib import Path
+import base64
+import requests
+import random
+import urllib.parse as urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -26,6 +30,186 @@ SPECIAL_INBOUNDS = {
 # -----------------------
 # 工具
 # -----------------------
+def parse_vless(link: str) -> dict:
+    u = urlparse.urlparse(link)
+
+    uuid = u.username
+    server = u.hostname
+    port = u.port
+
+    query = urlparse.parse_qs(u.query)
+
+    def q(key, default=None):
+        return query.get(key, [default])[0]
+
+    outbound = {
+        "type": "vless",
+        "tag": f"{server}-vless-out",
+        "server": server,
+        "server_port": port,
+        "uuid": uuid,
+        "tls": {}
+    }
+
+    # flow
+    if q("flow"):
+        outbound["flow"] = q("flow")
+
+    # TLS / Reality
+    if q("security") == "reality":
+        outbound["tls"] = {
+            "enabled": True,
+            "reality": {
+                "public_key": q("pbk"),
+                "short_id": q("sid", "")
+            },
+            "server_name": q("sni"),
+        }
+    elif q("security") == "tls":
+        outbound["tls"] = {
+            "enabled": True,
+            "server_name": q("sni"),
+        }
+
+    return outbound
+
+def parse_tuic(link: str) -> dict:
+    u = urlparse.urlparse(link)
+
+    uuid = u.username
+    password = u.password
+    server = u.hostname
+    port = u.port
+
+    query = urlparse.parse_qs(u.query)
+
+    def q(key, default=None):
+        return query.get(key, [default])[0]
+
+    outbound = {
+        "type": "tuic",
+        "tag": f"{server}-tuic-out",
+        "server": server,
+        "server_port": port,
+        "uuid": uuid,
+        "password": password,
+        "tls": {
+            "enabled": True,
+            "server_name": q("sni")
+        }
+    }
+
+    if q("congestion_control"):
+        outbound["congestion_control"] = q("congestion_control")
+
+    return outbound
+
+def parse_hy2(link: str) -> dict:
+    u = urlparse.urlparse(link)
+
+    password = u.username
+    server = u.hostname
+    port = u.port
+
+    query = urlparse.parse_qs(u.query)
+
+    def q(key, default=None):
+        return query.get(key, [default])[0]
+
+    outbound = {
+        "type": "hysteria2",
+        "tag": f"{server}-hy2-out",
+        "server": server,
+        "server_port": port,
+        "password": password,
+        "tls": {
+            "enabled": True,
+            "server_name": q("sni")
+        }
+    }
+
+    if q("obfs"):
+        outbound["obfs"] = {
+            "type": q("obfs"),
+            "password": q("obfs-password")
+        }
+
+    return outbound
+
+def parse_link(link: str) -> dict:
+    if link.startswith("vless://"):
+        return parse_vless(link)
+    elif link.startswith("tuic://"):
+        return parse_tuic(link)
+    elif link.startswith("hysteria2://") or link.startswith("hy2://"):
+        return parse_hy2(link)
+    else:
+        raise ValueError(f"❌ 不支持的协议: {link}")
+
+def fetch_subscription(url):
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
+    return resp.text.strip()
+
+
+def try_base64_decode(text):
+    try:
+        return base64.b64decode(text).decode()
+    except:
+        return None
+
+def parse_json_subscription(content):
+    data = json.loads(content)
+
+    outbounds = []
+
+    # sing-box 格式
+    if isinstance(data, dict) and "outbounds" in data:
+        for ob in data["outbounds"]:
+            if isinstance(ob, dict) and "type" in ob:
+                outbounds.append(copy.deepcopy(ob))
+
+    # 纯数组
+    elif isinstance(data, list):
+        for ob in data:
+            if isinstance(ob, dict) and "type" in ob:
+                outbounds.append(copy.deepcopy(ob))
+
+    else:
+        raise RuntimeError("❌ 不支持的 JSON 订阅格式")
+
+    print(f"✅ 成功解析: {len(outbounds)} 个订阅")
+
+    return outbounds
+
+def parse_subscription(url):
+    content = fetch_subscription(url)
+
+    # ---------- JSON ----------
+    if content.startswith("{") or content.startswith("["):
+        return parse_json_subscription(content)
+
+    # ---------- base64 ----------
+    decoded = try_base64_decode(content)
+    if decoded:
+        lines = decoded.splitlines()
+    else:
+        lines = content.splitlines()
+
+    # ---------- 链接 ----------
+    outbounds = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            ob = parse_link(line)
+            outbounds.append(copy.deepcopy(ob))
+        except Exception as e:
+            print(f"⚠️ 跳过: {line[:30]}... {e}")
+
+    return outbounds
+
 def load_json(path):
     path = Path(path)
     if not path.exists():
@@ -111,7 +295,7 @@ def generate_port_map(nodes, protocols_template):
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(nodes, tag, protocols, type_="normal", next_=None, exit_server=None, exit_port=None):
+def add_node(nodes, tag, protocols, type_="normal", next_=None, sub_=None):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
@@ -125,14 +309,13 @@ def add_node(nodes, tag, protocols, type_="normal", next_=None, exit_server=None
     if type_ == "relay":
         node["next"] = next_
     elif type_ == "exit":
-        node["exit_server"] = exit_server
-        node["exit_port"] = exit_port
+        node["source"] = sub_
 
     nodes.append(node)
     return nodes
 
 
-def update_node(nodes, tag, protocols=None, type_=None, next_=None, exit_server=None, exit_port=None):
+def update_node(nodes, tag, protocols=None, type_=None, next_=None, sub_=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
@@ -142,10 +325,7 @@ def update_node(nodes, tag, protocols=None, type_=None, next_=None, exit_server=
             if type_ == "relay" and next_:
                 n["next"] = next_
             if type_ == "exit":
-                if exit_server:
-                    n["exit_server"] = exit_server
-                if exit_port:
-                    n["exit_port"] = exit_port
+                n["source"] = sub_
             return nodes
 
     print(f"❌ 不存在 {tag}")
@@ -191,6 +371,9 @@ def build(nodes, protocols_template, tls_template,
         type_ = node.get("type", "normal")  # 默认为 normal
         protos = node["protocols"]
 
+        if type_ == "exit":
+            build_exit_outbounds(node, server_config)
+            continue
         for i, proto_name in enumerate(protos):
             if proto_name not in protocols_template:
                 continue
@@ -214,19 +397,43 @@ def build(nodes, protocols_template, tls_template,
                 outbound = copy.deepcopy(proto["outbound"])
                 outbound = fill_placeholders(outbound, tls_template, tag)
 
-                if type_ == "exit":
-                    if "server" in outbound:
-                        outbound["server"] = node.get("exit_server")
-                    if "server_port" in outbound:
-                        outbound["server_port"] = node.get("exit_port")
-                    upsert_by_tag(server_config["outbounds"], outbound)
-                    node["outbound_tags"].append(outbound["tag"])
-                else:
-                    port = port_map.get((tag, i))
-                    if port and "server_port" in outbound:
-                        outbound["server_port"] = port
-                    upsert_by_tag(client_config["outbounds"], outbound)
+                port = port_map.get((tag, i))
+                if port and "server_port" in outbound:
+                    outbound["server_port"] = port
+                upsert_by_tag(client_config["outbounds"], outbound)
 
+
+def build_exit_outbounds(node, server_config):
+    tag = node["tag"]
+
+    # ---------- 获取节点 ----------
+    if node.get("source"):
+        outbounds = parse_subscription(node["source"])
+    else:
+        raise RuntimeError(f"❌ exit 节点缺少 source: {tag}")
+
+    # ---------- 协议过滤 ----------
+    protocols = node.get("protocols")
+    if protocols:
+        outbounds = [o for o in outbounds if o.get("type") in protocols]
+
+    if not outbounds:
+        raise RuntimeError(f"❌ exit 节点无可用 outbound: {tag}")
+
+    # ---------- 选择策略 ----------
+    selected = [random.choice(outbounds)]
+
+    # ---------- 写入 ----------
+    node.setdefault("outbound_tags", [])
+
+    for i, ob in enumerate(selected):
+        ob = ob.copy()
+
+        # 避免 tag 冲突（关键）
+        ob["tag"] = f"{tag}-{i}-{ob['type']}-out"
+
+        upsert_by_tag(server_config["outbounds"], ob)
+        node["outbound_tags"].append(ob["tag"])
 
 def build_defaults(config):
     if "log" not in config:
@@ -336,6 +543,26 @@ def apply_relay(nodes, server_config):
             "outbound": dst_out_tag
         }
         rules.insert(0, rule)  # 优先级靠前
+
+def apply_relay_detour(nodes, server_config):
+    node_map = {n["tag"]: n for n in nodes}
+    inbounds = server_config.get("inbounds", [])
+
+    for node in nodes:
+        if node.get("type") != "relay":
+            continue
+
+        dst = node.get("next")
+        dst_node = node_map.get(dst)
+
+        if not dst_node or not dst_node.get("outbound_tags"):
+            continue  # 直接跳过，不报错
+
+        dst_out = dst_node["outbound_tags"][0]
+
+        for inbound in inbounds:
+            if inbound.get("tag") in node.get("inbound_tags", []):
+                inbound["detour"] = dst_out
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -499,8 +726,7 @@ def main():
     # relay 特有字段
     parser.add_argument("--next", help="relay 节点的下一跳目标 tag")
     # exit 特有字段
-    parser.add_argument("--exit-server", help="exit 节点远端 server 地址")
-    parser.add_argument("--exit-port", type=int, help="exit 节点远端 server 端口")
+    parser.add_argument("--sub", help="exit 节点远端订阅配置")
 
     args = parser.parse_args()
 
@@ -543,14 +769,14 @@ def main():
     if args.add:
         if args.type == "relay" and not args.next:
             raise RuntimeError("❌ relay 节点必须指定 --next")
-        if args.type == "exit" and (not args.exit_server or not args.exit_port):
-            raise RuntimeError("❌ exit 节点必须指定 --exit-server 和 --exit-port")
+        if args.type == "exit" and (not args.sub):
+            raise RuntimeError("❌ exit 节点必须指定 --sub")
         for t in args.add:
-            nodes = add_node(nodes, t, protocols, args.type, args.next, args.exit_server, args.exit_port)
+            nodes = add_node(nodes, t, protocols, args.type, args.next, args.sub)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(nodes, t, protocols, args.type, args.next, args.exit_server, args.exit_port)
+            nodes = update_node(nodes, t, protocols, args.type, args.next, args.sub)
 
     if args.delete:
         for t in args.delete:
@@ -564,7 +790,7 @@ def main():
         apply_patches(server_config, client_config,
               protocols_template, tls_template)
 
-        apply_relay(nodes, server_config)
+        apply_relay_detour(nodes, server_config)
 
         save_nodes(nodes)
         save_json(server_path, server_config)
