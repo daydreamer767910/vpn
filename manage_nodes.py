@@ -544,6 +544,7 @@ def apply_relay(nodes, server_config):
         }
         rules.insert(0, rule)  # 优先级靠前
 
+# bug: router: inbound detour not found
 def apply_relay_detour(nodes, server_config):
     node_map = {n["tag"]: n for n in nodes}
     inbounds = server_config.get("inbounds", [])
@@ -790,7 +791,7 @@ def main():
         apply_patches(server_config, client_config,
               protocols_template, tls_template)
 
-        apply_relay_detour(nodes, server_config)
+        apply_relay(nodes, server_config)
 
         save_nodes(nodes)
         save_json(server_path, server_config)
