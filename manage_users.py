@@ -52,11 +52,11 @@ def ts_print(msg):
 # 命令行参数
 # ------------------------
 parser = argparse.ArgumentParser(description="Sing-box 用户管理脚本")
-parser.add_argument("--tags", nargs="*", default=["all"])
+parser.add_argument("--nodes", nargs="*", default=["all"])
 parser.add_argument("--add", nargs="*")
 parser.add_argument("--delete", nargs="*")
 parser.add_argument("--clear", action="store_true")
-parser.add_argument("--update", action="store_true")
+parser.add_argument("--sync", action="store_true", help="同步journal(在目录journal/db/users下)用户到singbox")
 parser.add_argument("--enable", nargs="*")
 parser.add_argument("--extend", type=int, help="恢复或新增用户时延长有效期，单位天")
 parser.add_argument("--refresh", nargs="*", help="刷新指定用户uuid 和 password,同步到服务和客户端配置,但保留subscription token")
@@ -83,11 +83,11 @@ def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
-def create_user(name, source="cli", expire_days=None, tags=None):
+def create_user(name, source="cli", expire_days=None, nodes=None):
     now = datetime.datetime.now()
     expire_at = (now + datetime.timedelta(days=expire_days)).isoformat() if expire_days else None
-    if tags is None:
-        tags = ["all"]
+    if nodes is None:
+        nodes = ["all"]
     return {
         "name": name,
         "uuid": str(uuid.uuid4()),
@@ -100,7 +100,7 @@ def create_user(name, source="cli", expire_days=None, tags=None):
         "subscription_token": secrets.token_urlsafe(32),#uuid.uuid4().hex,
         "source": source,
         "expire_at": expire_at,
-        "tags": tags
+        "nodes": nodes
     }
 
 def parse_config_sh(sh_file: Path):
@@ -174,7 +174,7 @@ def main():
     # ------------------------
     # 自动更新 journal 用户
     # ------------------------
-    if args.update:
+    if args.sync:
         journal_users = {f.stem for f in JOURNAL_DB_USERS.glob("*.json")}
         to_add = journal_users - existing_names
         if to_add:
@@ -211,7 +211,7 @@ def main():
         for name_str in args.add: names.extend(split_user_input(name_str))
         for name in names:
             if name not in existing_names:
-                new_user = create_user(name, source="cli", expire_days=args.extend, tags=args.tags)
+                new_user = create_user(name, source="cli", expire_days=args.extend, nodes=args.nodes)
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
@@ -300,13 +300,14 @@ def main():
     for inbound in server_config.get("inbounds", []):
         protocol = inbound.get("type","").lower()
         tag = inbound.get("tag")
+        node = tag.split("-")[0]
         old_users = inbound.get("users",[])
         #new_users = [make_user_entry(protocol,u) for u in users if u.get("enabled",True)]
         new_users = [
             make_user_entry(protocol, u) 
             for u in users 
             if u.get("enabled", True) 
-            and (not u.get("tags") or "all" in u.get("tags") or tag in u.get("tags"))
+            and (not u.get("nodes") or "all" in u.get("nodes") or node in u.get("nodes"))
         ]
         if old_users != new_users:
             inbound["users"] = new_users
@@ -324,13 +325,14 @@ def main():
         if user["name"] not in updated_users: continue
         if user.get("enabled", True):
             new_config = copy.deepcopy(client_template)
-            tags = user.get("tags") or []
+            nodes = user.get("nodes") or []
             # 真正过滤 outbounds，不属于用户 tags 的删除
             filtered_outbounds = []
             for outbound in new_config.get("outbounds", []):
                 tag = outbound.get("tag","")
+                node = tag.split("-")[0]
                 # 跳过不属于当前 outbound 的用户
-                if tags and "all" not in tags and tag not in tags:
+                if nodes and "all" not in nodes and node not in nodes:
                     continue
                 protocol = outbound.get("type","").lower()
                 if protocol == "tuic":
