@@ -125,7 +125,9 @@ else
 fi
 
 echo "[INFO] Generating docker-compose.yml..."
-
+# 获取 DEPLOY_USER 的 UID 和 GID
+DEPLOY_UID=$(id -u $DEPLOY_USER)
+DEPLOY_GID=$(id -g $DEPLOY_USER)
 cat > /home/$DEPLOY_USER/docker-compose.yml <<EOF
 services:
   nginx:
@@ -150,6 +152,7 @@ services:
     environment:
       - TZ=${TIMEZONE}
     container_name: ${SINGBOX_CONTAINER}
+    user: "${DEPLOY_UID}:${DEPLOY_GID}"
     restart: unless-stopped
     command: >
       run -c /app/singbox/config.json
