@@ -448,32 +448,13 @@ cat > "$ROUTE_TEMPLATE" <<EOF
     "final": "direct"
   },
   "route-client": {
-    "rule_set": [
-      {
-        "type": "remote",
-        "tag": "geoip-cn",
-        "format": "binary",
-        "url": "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db",
-        "download_detour": "direct"
-      },
-      {
-        "type": "remote",
-        "tag": "geosite-cn",
-        "format": "binary",
-        "url": "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db",
-        "download_detour": "direct"
-      }
-    ],
     "rules": [
       {
-        "rule_set": "geosite-cn",
-        "outbound": "direct"
-      },
-      {
-        "rule_set": "geoip-cn",
+        "ip_is_private": true,
         "outbound": "direct"
       }
     ],
+    "default_domain_resolver": "remote",
     "final": "auto-proxy"
   }
 }
@@ -558,29 +539,23 @@ cat > "$DNS_TEMPLATE" <<EOF
       {
         "address": "223.5.5.5",
         "detour": "direct",
-        "tag": "cn-dns"
+        "tag": "local"
       },
       {
         "address": "1.1.1.1",
         "detour": "auto-proxy",
-        "tag": "proxy-dns"
+        "tag": "remote"
       }
     ],
     "rules": [
       {
-        "geosite": [
-          "cn"
-        ],
-        "server": "cn-dns"
+        "domain_suffix": [".cn"],
+        "server": "local"
       },
       {
-        "geosite": [
-          "geolocation-!cn"
-        ],
-        "server": "proxy-dns"
+        "server": "remote"
       }
     ],
-    "final": "proxy-dns",
     "strategy": "$DNS_STRATEGY",
     "independent_cache": true
   }
