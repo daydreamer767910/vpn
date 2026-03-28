@@ -452,9 +452,29 @@ cat > "$ROUTE_TEMPLATE" <<EOF
       {
         "ip_is_private": true,
         "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          ".cn",
+          "baidu.com",
+          "qq.com",
+          "weixin.qq.com",
+          "163.com",
+          "jd.com",
+          "taobao.com",
+          "tmall.com",
+          "pinduoduo.com",
+          "1688.com",
+          "alipay.com",
+          "bilibili.com",
+          "iqiyi.com",
+          "youku.com",
+          "douyin.com"
+        ],
+        "outbound": "direct"
       }
     ],
-    "default_domain_resolver": "remote",
+    "default_domain_resolver": "local",
     "final": "auto-proxy"
   }
 }
@@ -569,14 +589,11 @@ cat > "$DNS_TEMPLATE" <<EOF
         "server": "local"
       },
       {
-        "domain": ["${DOMAINLIST[0]}"],
-        "server": "local"
-      },
-      {
         "server": "remote"
       }
     ],
     "strategy": "$DNS_STRATEGY",
+    "final": "remote",
     "independent_cache": true
   }
 }
