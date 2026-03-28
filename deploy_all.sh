@@ -587,9 +587,6 @@ cat > "$DNS_TEMPLATE" <<EOF
           "douyin.com"
         ],
         "server": "local"
-      },
-      {
-        "server": "remote"
       }
     ],
     "strategy": "$DNS_STRATEGY",
