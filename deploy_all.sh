@@ -549,7 +549,27 @@ cat > "$DNS_TEMPLATE" <<EOF
     ],
     "rules": [
       {
-        "domain_suffix": [".cn"],
+        "domain_suffix": [
+          ".cn",
+          "baidu.com",
+          "qq.com",
+          "weixin.qq.com",
+          "163.com",
+          "jd.com",
+          "taobao.com",
+          "tmall.com",
+          "pinduoduo.com",
+          "1688.com",
+          "alipay.com",
+          "bilibili.com",
+          "iqiyi.com",
+          "youku.com",
+          "douyin.com"
+        ],
+        "server": "local"
+      },
+      {
+        "domain": ["${DOMAINLIST[0]}"],
         "server": "local"
       },
       {

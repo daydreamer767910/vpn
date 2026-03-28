@@ -493,7 +493,7 @@ def build_dynamic_outbounds(client_config):
         "tag": "auto-proxy",
         "type": "urltest",
         "outbounds": all_tags,
-        "url": "http://www.google.com/generate_204",
+        "url": "https://www.microsoft.com",
     }
     client_config["outbounds"].append(urltest_outbound)
 
