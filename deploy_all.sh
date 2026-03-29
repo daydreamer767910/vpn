@@ -301,15 +301,10 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
   },
   "tun":{
     "inbound":{
-      "type": "tun",
-      "tag": "tun-in",
-      "interface_name": "tun0",
-      "address": [
-        "172.18.0.1/30",
-        "fdfe:dcba:9876::1/126"
-      ],
-      "mtu": 9000,
-      "auto_route": true
+      "type": "mixed",
+      "tag": "client-in",
+      "listen": "127.0.0.1",
+      "listen_port": 12334
     }
   },
   "vless": {
@@ -450,10 +445,6 @@ cat > "$ROUTE_TEMPLATE" <<EOF
   "route-client": {
     "rules": [
       {
-        "ip_is_private": true,
-        "outbound": "direct"
-      },
-      {
         "domain_suffix": [
           ".cn",
           "baidu.com",
@@ -557,14 +548,13 @@ cat > "$DNS_TEMPLATE" <<EOF
   "dns-client": {
     "servers": [
       {
-        "address": "223.5.5.5",
-        "detour": "direct",
+        "type": "local",
         "tag": "local"
       },
       {
-        "address": "1.1.1.1",
-        "detour": "auto-proxy",
-        "tag": "remote"
+        "server": "1.1.1.1",
+        "tag": "remote",
+        "type": "https"
       }
     ],
     "rules": [
