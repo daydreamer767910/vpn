@@ -30,7 +30,6 @@
       "tag": "__DOLLAR__tag-vless-out",
       "server": "${DOMAIN0}",
       "server_port": 8443,
-	  "domain_resolver": "local",
       "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
       "flow": "xtls-rprx-vision",
       "tls": "__DOLLAR__tls:tls-reality-out"
@@ -51,7 +50,6 @@
 		"tag": "__DOLLAR__tag-tuic-out",
 		"server": "${DOMAIN0}",
 		"server_port": 443,
-		"domain_resolver": "local",
 		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
 		"password": "123456",
 		"congestion_control": "bbr",
@@ -80,7 +78,6 @@
 		"tag": "__DOLLAR__tag-hy2-out",
 		"server": "${DOMAIN0}",
 		"server_port": 8443,
-		"domain_resolver": "local",
 		"obfs": {
 			"type": "salamander",
 			"password": "1NlXeWE6v0J3S"
