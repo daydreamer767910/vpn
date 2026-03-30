@@ -13,13 +13,7 @@
       ],
       "mtu": 9000,
       "auto_route": true,
-	  "platform": {
-		"http_proxy": {
-			"enabled": true,
-			"server": "127.0.0.1",
-			"server_port": 12334
-		}
-	  }
+	  "strict_route": true
     }
   },
   "vless": {
