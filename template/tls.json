@@ -1,0 +1,47 @@
+{
+  "tls-in": {
+	"alpn": [
+		"h3",
+		"h2",
+		"http/1.1"
+	],
+	"certificate_path": "/app/cert/cert.pem",
+	"enabled": true,
+	"key_path": "/app/cert/privkey.pem",
+	"server_name": "${DOMAIN0}"
+  },
+  "tls-out": {
+	"enabled": true,
+	"server_name": "${DOMAIN0}",
+	"insecure": false,
+	"alpn": [
+		"h3"
+	]
+  },
+  "tls-reality-in": {
+	"server_name": "${SNI}",
+	"enabled": true,
+	"reality": {
+		"enabled": true,
+		"handshake": {
+			"server": "${SNI}",
+			"server_port": 443
+		},
+		"private_key": "${REALITY_PRIVATE_KEY}",
+        "short_id": [ "${REALITY_SHORT_ID}" ]
+	}
+  },
+  "tls-reality-out": {
+	"server_name": "${SNI}",
+	"enabled": true,
+	"reality": {
+		"enabled": true,
+		"public_key": "${REALITY_PUBLIC_KEY}",
+		"short_id": "${REALITY_SHORT_ID}"
+	},
+	"utls": {
+		"enabled": true,
+		"fingerprint": "chrome"
+	}
+  }
+}

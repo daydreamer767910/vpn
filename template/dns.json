@@ -1,0 +1,61 @@
+{
+  "dns-server": {
+    "servers": [
+      {
+        "type": "local",
+        "tag": "local"
+      },
+      {
+        "type": "tailscale",
+        "tag": "tailscale",
+        "endpoint": "tailscale-ep"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          "${TS_DOMAIN_SUFFIX}"
+        ],
+        "action": "route",
+        "server": "tailscale"
+      }
+    ],
+    "strategy": "${DNS_STRATEGY}",
+    "final": "local"
+  },
+  "dns-client": {
+    "servers": [
+      {
+        "type": "fakeip",
+        "tag": "fakeip",
+        "inet4_range": "198.18.0.0/15",
+        "inet6_range": "fc00::/18"
+      },
+      {
+        "type": "local",
+        "tag": "local"
+      },
+      {
+        "server": "1.1.1.1",
+        "tag": "remote",
+        "type": "https"
+      }
+    ],
+    "rules": [
+      {
+        "query_type":["A","AAAA"],
+        "action": "route",
+        "server": "fakeip"
+      },
+      {
+        "domain_suffix": [
+          ${DOMAIN_LOCAL_STR}
+        ],
+        "server": "local"
+      }
+    ],
+    "strategy": "${DNS_STRATEGY}",
+    "final": "remote",
+    "independent_cache": true
+  }
+}

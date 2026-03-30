@@ -1,0 +1,83 @@
+{
+  "route-server": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "route",
+        "outbound": "direct",
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "domain": [
+              "${TS_HOSTNAME}.${TS_DOMAIN_SUFFIX}"
+            ]
+          },
+          {
+            "ip_cidr": [
+              ${TS_HOSTIP}
+            ]
+          }
+        ]
+      },
+      {
+        "action": "route",
+        "outbound": "tailscale-ep",
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "ip_cidr": [
+              "100.64.0.0/10",
+              "fd7a:115c:a1e0::/48"
+            ]
+          },
+          {
+            "domain_suffix": [
+              "${TS_DOMAIN_SUFFIX}"
+            ]
+          }
+        ]
+      },
+      {
+        "auth_user": [
+          "tailscale"
+        ],
+        "action": "route",
+        "outbound": "tailscale-ep"
+      },
+      {
+        "auth_user": [
+          "warp"
+        ],
+        "action": "route",
+        "outbound": "warp-2000"
+      }
+    ],
+    "rule_set": [],
+    "default_domain_resolver": "local",
+    "final": "direct"
+  },
+  "route-client": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "domain_suffix": [
+          ${DOMAIN_LOCAL_STR}
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "auto_detect_interface": true,
+    "default_domain_resolver": "local",
+    "final": "auto-proxy"
+  }
+}

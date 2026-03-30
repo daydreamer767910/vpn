@@ -1,0 +1,88 @@
+{
+  "direct":{
+    "outbound":{ "tag": "direct", "type": "direct" }
+  },
+  "tun":{
+    "inbound":{
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": [
+        "172.18.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "mtu": 9000,
+      "auto_route": true
+    }
+  },
+  "vless": {
+    "inbound":{
+      "type": "vless",
+      "listen": "::",
+      "listen_port": 8443,
+      "tag": "__DOLLAR__tag-vless-in",
+      "tls": "__DOLLAR__tls:tls-reality-in",
+      "users": []
+    },
+    "outbound":{
+      "type": "vless",
+      "tag": "__DOLLAR__tag-vless-out",
+      "server": "${DOMAIN0}",
+      "server_port": 8443,
+      "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
+      "flow": "xtls-rprx-vision",
+      "tls": "__DOLLAR__tls:tls-reality-out"
+    }
+  },
+  "tuic":{
+	"inbound":{
+		"type": "tuic",
+		"congestion_control": "bbr",
+		"listen": "::",
+		"listen_port": 443,
+		"tag": "__DOLLAR__tag-tuic-in",
+		"tls": "__DOLLAR__tls:tls-in",
+		"users": []
+	},
+	"outbound":{
+		"type": "tuic",
+		"tag": "__DOLLAR__tag-tuic-out",
+		"server": "${DOMAIN0}",
+		"server_port": 443,
+		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
+		"password": "123456",
+		"congestion_control": "bbr",
+		"tls": "__DOLLAR__tls:tls-out"
+	}
+  },
+  "hysteria2":{
+	"inbound":{
+		"listen": "::",
+		"listen_port": 8443,
+		"masquerade": {
+			"directory": "/file/download",
+			"type": "file"
+		},
+		"obfs": {
+			"password": "1NlXeWE6v0J3S",
+			"type": "salamander"
+		},
+		"tag": "__DOLLAR__tag-hy2-in",
+		"tls": "__DOLLAR__tls:tls-in",
+		"type": "hysteria2",
+		"users": []
+	},
+	"outbound":{
+		"type": "hysteria2",
+		"tag": "__DOLLAR__tag-hy2-out",
+		"server": "${DOMAIN0}",
+		"server_port": 8443,
+		"obfs": {
+			"type": "salamander",
+			"password": "1NlXeWE6v0J3S"
+		},
+		"password": "123456",
+		"tls": "__DOLLAR__tls:tls-out"
+	}
+  }
+}

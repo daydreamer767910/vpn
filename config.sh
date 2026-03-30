@@ -3,11 +3,10 @@
 
 # 最终用户
 DEPLOY_USER="vpn"
-USER_EMAIL="xxxxxxxx@gmail.com"
+USER_EMAIL="yourmail@gmail.com"
 
 # 时区
 TIMEZONE="America/Los_Angeles"
-
 
 # Sing-box 各协议监听端口
 SINGBOX_PORT_START=10000
@@ -16,8 +15,25 @@ SINGBOX_PORT_END=10006
 # Reality TLS 配置
 SNI="www.microsoft.com"
 
-# DNS
+# DNS (One of prefer_ipv4 prefer_ipv6 ipv4_only ipv6_only.)
 DNS_STRATEGY="prefer_ipv4"
+DOMAIN_LOCAL_LIST=(".cn"
+          "baidu.com"
+          "qq.com"
+          "weixin.qq.com"
+          "weixinbridge.com"
+          "servicewechat.com"
+          "163.com"
+          "jd.com"
+          "taobao.com"
+          "tmall.com"
+          "pinduoduo.com"
+          "1688.com"
+          "alipay.com"
+          "bilibili.com"
+          "iqiyi.com"
+          "youku.com"
+          "douyin.com")
 # endpoint
 TS_AUTH_KEY="tskey-auth-kWohtATBST11CNTRL-dc2CsT1CargmmW9yVPgPrg8RDjA5ZJFQ6"
 TS_HOSTNAME="dd2001"
