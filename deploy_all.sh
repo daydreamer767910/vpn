@@ -301,10 +301,15 @@ cat > "$PROTOCOL_TEMPLATE" <<EOF
   },
   "tun":{
     "inbound":{
-      "type": "mixed",
-      "tag": "client-in",
-      "listen": "127.0.0.1",
-      "listen_port": 12334
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "address": [
+        "172.18.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "mtu": 9000,
+      "auto_route": true
     }
   },
   "vless": {
@@ -445,11 +450,20 @@ cat > "$ROUTE_TEMPLATE" <<EOF
   "route-client": {
     "rules": [
       {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
         "domain_suffix": [
           ".cn",
           "baidu.com",
           "qq.com",
           "weixin.qq.com",
+          "weixinbridge.com",
+          "servicewechat.com",
           "163.com",
           "jd.com",
           "taobao.com",
@@ -465,6 +479,7 @@ cat > "$ROUTE_TEMPLATE" <<EOF
         "outbound": "direct"
       }
     ],
+    "auto_detect_interface": true,
     "default_domain_resolver": "local",
     "final": "auto-proxy"
   }
@@ -548,6 +563,12 @@ cat > "$DNS_TEMPLATE" <<EOF
   "dns-client": {
     "servers": [
       {
+        "type": "fakeip",
+        "tag": "fakeip",
+        "inet4_range": "198.18.0.0/15",
+        "inet6_range": "fc00::/18"
+      },
+      {
         "type": "local",
         "tag": "local"
       },
@@ -559,11 +580,18 @@ cat > "$DNS_TEMPLATE" <<EOF
     ],
     "rules": [
       {
+        "query_type":["A","AAAA"],
+        "action": "route",
+        "server": "fakeip"
+      },
+      {
         "domain_suffix": [
           ".cn",
           "baidu.com",
           "qq.com",
           "weixin.qq.com",
+          "weixinbridge.com",
+          "servicewechat.com",
           "163.com",
           "jd.com",
           "taobao.com",
