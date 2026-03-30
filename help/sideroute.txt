@@ -1,0 +1,244 @@
+可以的，我给你一套**能跑、结构清晰、最小可用**的范例（基于 sing-box + TProxy 做软路由）。不搞花活，先跑通再说。
+
+---
+
+# 🧠 整体思路（你先理解这个）
+
+```text
+局域网设备 → 网关(你这台机器)
+            ↓
+iptables 标记流量
+            ↓
+TPROXY 转给 sing-box
+            ↓
+sing-box 根据规则：
+   国内 → direct
+   国外 → proxy
+```
+
+---
+
+# 🧱 一、系统要求
+
+* Linux（Debian / Ubuntu）
+* 开启转发：
+
+```bash
+sysctl -w net.ipv4.ip_forward=1
+```
+
+---
+
+# ⚙️ 二、sing-box 配置（核心）
+
+## inbound（关键：tproxy）
+
+```json
+{
+  "inbounds": [
+    {
+      "type": "tproxy",
+      "tag": "tproxy-in",
+      "listen": "0.0.0.0",
+      "listen_port": 7893,
+      "network": "tcp,udp"
+    }
+  ]
+}
+```
+
+---
+
+## outbound（示例）
+
+```json
+{
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "your-server.com",
+      "server_port": 443,
+      "uuid": "xxxx",
+      "tls": {}
+    }
+  ]
+}
+```
+
+---
+
+## route（必须有）
+
+```json
+{
+  "route": {
+    "rules": [
+      {
+        "geoip": ["cn"],
+        "outbound": "direct"
+      },
+      {
+        "geosite": ["cn"],
+        "outbound": "direct"
+      },
+      {
+        "outbound": "proxy"
+      }
+    ]
+  }
+}
+```
+
+---
+
+# 🔥 三、iptables（最关键）
+
+## 1️⃣ 创建链
+
+```bash
+iptables -t mangle -N SINGBOX
+```
+
+---
+
+## 2️⃣ 排除本地和保留地址
+
+```bash
+iptables -t mangle -A SINGBOX -d 0.0.0.0/8 -j RETURN
+iptables -t mangle -A SINGBOX -d 10.0.0.0/8 -j RETURN
+iptables -t mangle -A SINGBOX -d 127.0.0.0/8 -j RETURN
+iptables -t mangle -A SINGBOX -d 169.254.0.0/16 -j RETURN
+iptables -t mangle -A SINGBOX -d 172.16.0.0/12 -j RETURN
+iptables -t mangle -A SINGBOX -d 192.168.0.0/16 -j RETURN
+iptables -t mangle -A SINGBOX -d 224.0.0.0/4 -j RETURN
+iptables -t mangle -A SINGBOX -d 240.0.0.0/4 -j RETURN
+```
+
+---
+
+## 3️⃣ 标记流量
+
+```bash
+iptables -t mangle -A SINGBOX -p tcp -j TPROXY --on-port 7893 --tproxy-mark 1
+iptables -t mangle -A SINGBOX -p udp -j TPROXY --on-port 7893 --tproxy-mark 1
+```
+
+---
+
+## 4️⃣ 应用到 PREROUTING
+
+```bash
+iptables -t mangle -A PREROUTING -j SINGBOX
+```
+
+---
+
+# 🧭 四、策略路由（必须）
+
+```bash
+ip rule add fwmark 1 table 100
+ip route add local 0.0.0.0/0 dev lo table 100
+```
+
+---
+
+# 🧪 五、测试
+
+### 1. 客户端设置网关为这台机器
+
+```text
+192.168.1.1（你的服务器）
+```
+
+---
+
+### 2. 测试
+
+```bash
+curl ip.sb
+```
+
+* 国内网站 → 直连
+* Google → 走代理
+
+---
+
+# ⚠️ 常见坑（你一定会踩）
+
+### ❗ 1. 忘记策略路由 → 完全不生效
+
+---
+
+### ❗ 2. DNS 没处理
+
+建议加：
+
+```json
+"dns": {
+  "servers": [
+    {
+      "tag": "google",
+      "address": "8.8.8.8",
+      "detour": "proxy"
+    }
+  ]
+}
+```
+
+---
+
+### ❗ 3. 本机流量循环
+
+如果你要代理“本机流量”，要加 OUTPUT 规则（先别搞，容易炸）
+
+---
+
+
+```
+一键部署脚本：setup_tproxy.sh
+
+最小singbox配置：
+{
+  "inbounds": [
+    {
+      "type": "tproxy",
+      "tag": "tproxy-in",
+      "listen": "0.0.0.0",
+      "listen_port": 7893
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "vless",
+      "tag": "proxy",
+      "server": "你的服务器",
+      "server_port": 443,
+      "uuid": "你的uuid",
+      "tls": {}
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "geoip": ["cn"],
+        "outbound": "direct"
+      },
+      {
+        "outbound": "proxy"
+      }
+    ]
+  }
+}

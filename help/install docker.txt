@@ -74,7 +74,7 @@ sudo chmod 600 /home/vpn/.ssh/authorized_keys
 
 
 
-
+docker system prune -a --volumes -f
 
 
 

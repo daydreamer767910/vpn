@@ -258,8 +258,9 @@ for t in template/*.json; do
 done
 
 echo "[INFO] template generated at $TMPLT_DIR"
-
+su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
 su - $DEPLOY_USER -c "docker compose up -d"
+su - $DEPLOY_USER -c "python3 manage_nodes.py --add $TS_HOSTNAME"
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "Switch to user: su - $DEPLOY_USER"

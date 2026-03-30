@@ -46,17 +46,15 @@ sudo tcpdump -ni any udp port 51820
 
 sudo tcpdump -i eth0 udp port 51820
 
-禁止ssh使用用户名+密码登录：
-nano /etc/ssh/sshd_config.d/50-cloud-init.conf
-PasswordAuthentication no
-重启服务：
-systemctl restart ssh
-确认状态：
-sshd -T | grep -E 'password|permitroot|kbd' ：
-permitrootlogin yes
-passwordauthentication no
-kbdinteractiveauthentication no
-permitemptypasswords no
 
 
+sudo iptables -t nat -L -n
+
+sudo nano /etc/docker/daemon.json
+
+{
+  "iptables": false
+}
+
+sudo systemctl restart docker
 
