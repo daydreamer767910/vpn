@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import os
 import json
+import yaml
 import copy
 import argparse
 from pathlib import Path
 import base64
 import requests
 import random
+import subprocess
 import urllib.parse as urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -15,6 +17,8 @@ PORT_START = 10000
 PORT_END = 20000
 
 NODES_PATH = BASE_DIR / "singbox/nodes.json"
+DOCKER_COMPOSE_PATH = BASE_DIR / "docker-compose.yml"
+
 SPECIAL_OUTBOUNDS = {
     "direct",
     "block",
@@ -27,6 +31,58 @@ SPECIAL_INBOUNDS = {
     "tun",
 }
 
+# 协议 -> 要映射的端口类型
+# tcp: 只映射 TCP
+# udp: 只映射 UDP
+# both: TCP 和 UDP
+PROTOCOL_PORT_TYPE = {
+    "vless": "tcp",
+    "tuic": "udp",
+    "hysteria2": "udp",
+    "shadowsocks": "both",
+    "trojan": "tcp",
+    "socks": "tcp",
+    "http": "tcp",
+    "tun": None,   # 不映射 Docker
+    "direct": None,
+    "block": None,
+    "selector": None,
+    "urltest": None,
+}
+
+def load_json(path):
+    path = Path(path)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except:
+        return {}
+
+
+def save_json(path, obj):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
+
+
+def load_nodes():
+    return load_json(NODES_PATH).get("nodes", [])
+
+
+def save_nodes():
+    save_json(NODES_PATH, {"nodes": nodes})
+
+
+template_dir = BASE_DIR / "template"
+
+protocols_template = load_json(template_dir / "protocols.json")
+tls_template = load_json(template_dir / "tls.json")
+route_template = load_json(template_dir / "route.json")
+dns_template = load_json(template_dir / "dns.json")
+endpoints_template = load_json(template_dir / "endpoints.json")
+nodes = load_nodes()
+old_nodes = copy.deepcopy(nodes)
 # -----------------------
 # 工具
 # -----------------------
@@ -210,30 +266,6 @@ def parse_subscription(url):
 
     return outbounds
 
-def load_json(path):
-    path = Path(path)
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except:
-        return {}
-
-
-def save_json(path, obj):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2), encoding="utf-8")
-
-
-def load_nodes():
-    return load_json(NODES_PATH).get("nodes", [])
-
-
-def save_nodes(nodes):
-    save_json(NODES_PATH, {"nodes": nodes})
-
-
 # -----------------------
 # 占位符
 # -----------------------
@@ -256,54 +288,106 @@ def fill_placeholders(obj, tls_templates=None, node_tag=None):
 
     return obj
 
+# 协议 -> 要映射的端口类型
+# tcp: 只映射 TCP
+# udp: 只映射 UDP
+# both: TCP 和 UDP
+PROTOCOL_PORT_TYPE = {
+    "vless": "tcp",
+    "tuic": "udp",
+    "hysteria2": "udp",
+    "shadowsocks": "both",
+    "trojan": "tcp",
+    "socks": "tcp",
+    "http": "tcp",
+    "tun": None,   # 不映射 Docker
+    "direct": None,
+    "block": None,
+    "selector": None,
+    "urltest": None,
+}
 
-# -----------------------
-# 端口生成（无状态）
-# -----------------------
-def generate_port_map(nodes, protocols_template):
-    port = PORT_START
-    port_map = {}
 
-    nodes_sorted = sorted(nodes, key=lambda x: x["tag"])
-
-    for node in nodes_sorted:
-        tag = node["tag"]
-        protos = node["protocols"]
-
-        for idx, proto_name in enumerate(protos):
-            proto = protocols_template.get(proto_name, {})
-
-            need_port = False
-
-            if "inbound" in proto and "listen_port" in proto["inbound"]:
-                need_port = True
-            elif "outbound" in proto and "server_port" in proto["outbound"]:
-                need_port = True
-
-            if not need_port:
+def assign_ports_for_node(tag, protocols, user_ports=None):
+    """
+    给每个协议分配端口：
+      - 如果端口已经被占用，但协议类型不同（TCP/UDP）可共用
+      - 用户指定端口重复时检查协议类型
+    """
+    # used_ports: { port: set of protocol types }
+    used_ports = {}
+    for n in nodes:
+        for idx, p in enumerate(n.get("ports", [])):
+            if p is None:
                 continue
+            proto_name = n.get("protocols", [])[idx] if idx < len(n.get("protocols", [])) else None
+            proto_type = PROTOCOL_PORT_TYPE.get(proto_name)
+            if proto_type is None:
+                continue
+            types = set()
+            if proto_type in ("tcp", "both"):
+                types.add("tcp")
+            if proto_type in ("udp", "both"):
+                types.add("udp")
+            if p in used_ports:
+                used_ports[p].update(types)
+            else:
+                used_ports[p] = types
 
-            if port > PORT_END:
-                raise RuntimeError("端口耗尽")
+    ports = []
+    port_idx = 0
+    for idx, proto_name in enumerate(protocols):
+        proto_type = PROTOCOL_PORT_TYPE.get(proto_name)
+        if proto_type is None:
+            ports.append(None)
+            continue
 
-            port_map[(tag, idx)] = port
-            port += 1
+        types = set()
+        if proto_type in ("tcp", "both"):
+            types.add("tcp")
+        if proto_type in ("udp", "both"):
+            types.add("udp")
 
-    return port_map
+        # 用户指定端口
+        if user_ports and port_idx < len(user_ports):
+            port = user_ports[port_idx]
+            if port in used_ports and used_ports[port] & types:
+                raise RuntimeError(f"❌ 用户指定端口 {port} 已被占用（协议冲突）")
+        else:
+            # 自动生成端口
+            port = PORT_START + (abs(hash(f"{tag}-{idx}")) % (PORT_END - PORT_START))
+            while port in used_ports and used_ports[port] & types:
+                port += 1
+                if port > PORT_END:
+                    port = PORT_START
+            if port in used_ports and used_ports[port] & types:
+                raise RuntimeError("❌ 端口耗尽")
 
+        # 更新已用端口映射
+        if port in used_ports:
+            used_ports[port].update(types)
+        else:
+            used_ports[port] = types
 
+        ports.append(port)
+        port_idx += 1
+
+    return ports
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(nodes, tag, protocols, type_="normal", next_=None, sub_=None):
+def add_node(tag, protocols, type_="normal", next_=None, sub_=None, ports_=None):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
+
+    assigned_ports = assign_ports_for_node(tag, protocols, ports_)
 
     node = {
         "tag": tag,
         "protocols": protocols,
         "type": type_,
+        "ports": assigned_ports,
     }
 
     if type_ == "relay":
@@ -315,7 +399,7 @@ def add_node(nodes, tag, protocols, type_="normal", next_=None, sub_=None):
     return nodes
 
 
-def update_node(nodes, tag, protocols=None, type_=None, next_=None, sub_=None):
+def update_node(tag, protocols=None, type_=None, next_=None, sub_=None, ports_=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
@@ -324,6 +408,8 @@ def update_node(nodes, tag, protocols=None, type_=None, next_=None, sub_=None):
                 n["type"] = type_
             if type_ == "relay" and next_:
                 n["next"] = next_
+            if ports_:
+                n["ports"] = assign_ports_for_node(tag, protocols, ports_)
             if type_ == "exit":
                 n["source"] = sub_
             return nodes
@@ -332,7 +418,7 @@ def update_node(nodes, tag, protocols=None, type_=None, next_=None, sub_=None):
     return nodes
 
 
-def delete_node(nodes, tag):
+def delete_node(tag):
     return [n for n in nodes if n["tag"] != tag]
 
 
@@ -353,8 +439,7 @@ def upsert_by_tag(arr, item):
 # -----------------------
 # 构建 config
 # -----------------------
-def build(nodes, protocols_template, tls_template,
-          server_config, client_config):
+def build(server_config, client_config):
     """
     构建配置：
       - normal 节点A类:生成 inbound ,build config for both server and client
@@ -362,8 +447,6 @@ def build(nodes, protocols_template, tls_template,
       - exit 节点C类:生成 outbound,build config for server only
     """
 
-    port_map = generate_port_map(nodes, protocols_template)
-    
     for node in nodes:
         node["inbound_tags"] = []
         node["outbound_tags"] = []
@@ -386,7 +469,7 @@ def build(nodes, protocols_template, tls_template,
                 inbound = copy.deepcopy(proto["inbound"])
                 inbound = fill_placeholders(inbound, tls_template, tag)
 
-                port = port_map.get((tag, i))
+                port = node["ports"][i]
                 if port and "listen_port" in inbound:
                     inbound["listen_port"] = port
 
@@ -397,7 +480,7 @@ def build(nodes, protocols_template, tls_template,
                 outbound = copy.deepcopy(proto["outbound"])
                 outbound = fill_placeholders(outbound, tls_template, tag)
 
-                port = port_map.get((tag, i))
+                port = node["ports"][i]
                 if port and "server_port" in outbound:
                     outbound["server_port"] = port
                 upsert_by_tag(client_config["outbounds"], outbound)
@@ -439,7 +522,7 @@ def build_defaults(config):
     if "log" not in config:
         config["log"] = {"level": "info"}
 
-def apply_patches(server_config, client_config, protocols_template, tls_template):
+def apply_patches(server_config, client_config):
     # -------- direct --------
     if "direct" in protocols_template:
         proto = protocols_template["direct"]
@@ -497,7 +580,7 @@ def build_dynamic_outbounds(client_config):
     }
     client_config["outbounds"].append(urltest_outbound)
 
-def apply_relay(nodes, server_config):
+def apply_relay(server_config):
     """
     为类型为 relay 的节点生成 route 规则：
       - 节点自身必须有 inbound_tags
@@ -544,26 +627,6 @@ def apply_relay(nodes, server_config):
         }
         rules.insert(0, rule)  # 优先级靠前
 
-# bug: router: inbound detour not found
-def apply_relay_detour(nodes, server_config):
-    node_map = {n["tag"]: n for n in nodes}
-    inbounds = server_config.get("inbounds", [])
-
-    for node in nodes:
-        if node.get("type") != "relay":
-            continue
-
-        dst = node.get("next")
-        dst_node = node_map.get(dst)
-
-        if not dst_node or not dst_node.get("outbound_tags"):
-            continue  # 直接跳过，不报错
-
-        dst_out = dst_node["outbound_tags"][0]
-
-        for inbound in inbounds:
-            if inbound.get("tag") in node.get("inbound_tags", []):
-                inbound["detour"] = dst_out
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -584,18 +647,21 @@ def run_manage_users():
 # 防火墙
 # -----------------------
 def collect_ports_from_config(server_config):
-    ports = set()
-
+    """
+    返回 dict: port -> 类型
+      例如 {443: "tcp", 10000: "both"}
+    """
+    ports = {}
     for i in server_config.get("inbounds", []):
-        p = i.get("listen_port")
-        if p:
-            ports.add(p)
-
+        port = i.get("listen_port")
+        proto = i.get("type")
+        if not port or proto not in PROTOCOL_PORT_TYPE:
+            continue
+        ports[port] = PROTOCOL_PORT_TYPE[proto]
     return ports
 
-
 def apply_firewall(server_config):
-    ports = sorted(collect_ports_from_config(server_config))
+    port_map = collect_ports_from_config(server_config)
 
     print("🔥 同步防火墙...")
 
@@ -605,15 +671,71 @@ def apply_firewall(server_config):
     os.system("ufw allow 80/tcp")
     os.system("ufw allow 443/tcp")
 
-    for p in ports:
-        os.system(f"ufw allow {p}/tcp")
-        os.system(f"ufw allow {p}/udp")
+    for port, typ in port_map.items():
+        if typ == "tcp":
+            os.system(f"ufw allow {port}/tcp")
+        elif typ == "udp":
+            os.system(f"ufw allow {port}/udp")
+        elif typ == "both":
+            os.system(f"ufw allow {port}/tcp")
+            os.system(f"ufw allow {port}/udp")
+        # None 表示不开放
 
     os.system("ufw --force enable")
 
-    print(f"✅ 已开放端口: {sorted(ports)}")
+    print(f"✅ 已开放端口: {sorted(port_map.keys())}")
 
+def update_docker_compose_ports(server_config):
+    port_mappings = []
 
+    for i in server_config.get("inbounds", []):
+        port = i.get("listen_port")
+        proto = i.get("type")
+        if not port or proto not in PROTOCOL_PORT_TYPE:
+            continue
+
+        mapping_type = PROTOCOL_PORT_TYPE[proto]
+        if mapping_type == "tcp":
+            port_mappings.append(f"{port}:{port}/tcp")
+        elif mapping_type == "udp":
+            port_mappings.append(f"{port}:{port}/udp")
+        elif mapping_type == "both":
+            port_mappings.append(f"{port}:{port}/tcp")
+            port_mappings.append(f"{port}:{port}/udp")
+        # None 表示不映射
+
+    if not port_mappings:
+        print("⚠️ 没有有效端口需要同步到 Docker Compose")
+        return
+
+    if not DOCKER_COMPOSE_PATH.exists():
+        print(f"⚠️ 未找到 {DOCKER_COMPOSE_PATH}")
+        return
+
+    with open(DOCKER_COMPOSE_PATH, "r", encoding="utf-8") as f:
+        compose_data = yaml.safe_load(f)
+
+    if "sing-box" not in compose_data.get("services", {}):
+        print("⚠️ docker-compose.yml 中未找到 sing-box 服务")
+        return
+
+    compose_data["services"]["sing-box"]["ports"] = port_mappings
+
+    with open(DOCKER_COMPOSE_PATH, "w", encoding="utf-8") as f:
+        yaml.safe_dump(compose_data, f, sort_keys=False)
+
+    print(f"✅ 已同步端口到 docker-compose.yml: {port_mappings}")
+
+def restart_singbox_container():
+    print("🔄 重启 sing-box 容器...")
+    ret = subprocess.run(
+        ["docker", "compose", "up", "-d", "--force-recreate", "sing-box"],
+        cwd=BASE_DIR
+    )
+    if ret.returncode == 0:
+        print("✅ sing-box 容器已重启")
+    else:
+        print("❌ 重启失败，请手动检查")
 # -----------------------
 # Lint
 # -----------------------
@@ -713,8 +835,11 @@ def show_config(server_config, client_config):
 # 主函数
 # -----------------------
 def main():
+    global nodes
+    global old_nodes
     parser = argparse.ArgumentParser()
     parser.add_argument("--add", nargs="*")
+    parser.add_argument("--port", nargs="*", type=int, help="指定端口（按协议顺序）")
     parser.add_argument("--update", nargs="*")
     parser.add_argument("--delete", nargs="*")
     parser.add_argument("--protocols", nargs="*")
@@ -730,14 +855,6 @@ def main():
     parser.add_argument("--sub", help="exit 节点远端订阅配置")
 
     args = parser.parse_args()
-
-    template_dir = BASE_DIR / "template"
-
-    protocols_template = load_json(template_dir / "protocols.json")
-    tls_template = load_json(template_dir / "tls.json")
-    route_template = load_json(template_dir / "route.json")
-    dns_template = load_json(template_dir / "dns.json")
-    endpoints_template = load_json(template_dir / "endpoints.json")
 
     server_path = BASE_DIR / "singbox/server/config.json"
     client_path = BASE_DIR / "singbox/client/config.json"
@@ -757,8 +874,6 @@ def main():
         "dns": dns_template.get("dns-client", {})
     }
 
-    nodes = load_nodes()
-    old_nodes = copy.deepcopy(nodes)
 
     protocols = []
     if args.protocols:
@@ -773,32 +888,32 @@ def main():
         if args.type == "exit" and (not args.sub):
             raise RuntimeError("❌ exit 节点必须指定 --sub")
         for t in args.add:
-            nodes = add_node(nodes, t, protocols, args.type, args.next, args.sub)
+            nodes = add_node(t, protocols, args.type, args.next, args.sub, args.port)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(nodes, t, protocols, args.type, args.next, args.sub)
+            nodes = update_node(t, protocols, args.type, args.next, args.sub, args.port)
 
     if args.delete:
         for t in args.delete:
-            nodes = delete_node(nodes, t)
+            nodes = delete_node(t)
 
     changed = (old_nodes != nodes)
     if changed:
-        build(nodes, protocols_template, tls_template,
-              server_config, client_config)
+        build(server_config, client_config)
 
-        apply_patches(server_config, client_config,
-              protocols_template, tls_template)
+        apply_patches(server_config, client_config)
 
-        apply_relay(nodes, server_config)
+        apply_relay(server_config)
 
-        save_nodes(nodes)
+        save_nodes()
         save_json(server_path, server_config)
         save_json(client_path, client_config)
         print("✅ 已更新配置")
-
-        run_manage_users()
+        # 同步端口到 docker-compose
+        update_docker_compose_ports(server_config)
+        restart_singbox_container()
+        #run_manage_users()
 
     if args.firewall:
         server_config = load_json(server_path)
