@@ -155,14 +155,10 @@ services:
     container_name: ${SINGBOX_CONTAINER}
     user: "${DEPLOY_UID}:${DEPLOY_GID}"
     restart: unless-stopped
-    command: >
-      run -c /app/singbox/config.json
+    command: run -c /app/singbox/config.json
     volumes:
       - ${CERT_DST}:/app/cert:ro
       - ./singbox/server:/app/singbox
-    ports:
-      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END/tcp"
-      - "$SINGBOX_PORT_START-$SINGBOX_PORT_END:$SINGBOX_PORT_START-$SINGBOX_PORT_END/udp"
     dns:
       - 1.1.1.1
       - 8.8.8.8
@@ -176,8 +172,6 @@ services:
     networks:
       lan:
          ipv4_address: 172.19.0.4
-    #ports:
-      #- "5000:5000"
     volumes:
       - ./singbox:/app/singbox:ro
     restart: unless-stopped

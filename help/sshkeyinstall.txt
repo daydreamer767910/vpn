@@ -1,3 +1,12 @@
+一、生成密钥：
+ssh-keygen -t ed25519
+
+二、上传：
+2种方式：
+1.直接上传(必须在 WSL（Ubuntu on Windows） 或 Git Bash（非 PowerShell） 执行):
+ssh-copy-id -p 22 -i key.pub root@IP
+
+2.登录后上传：
 mkdir -p ~/.ssh
 nano ~/.ssh/authorized_keys
 
@@ -6,7 +15,41 @@ nano ~/.ssh/authorized_keys
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/authorized_keys
 
-禁止ssh使用用户名+密码登录：
+三、修改本地key的权限：
+icacls .\key /inheritance:r
+icacls .\key /grant:r "$($env:USERNAME):(R)"
+
+四、登录：
+ssh -i .\key root@IP
+
+五、上传文件/目录：
+scp -i key 文件 root@IP:/路径/
+scp -i key -r 目录 root@IP:/路径/
+或者
+rsync -avz -e "ssh -i key" 文件 root@IP:/路径/
+完全同步（远端保持一致:本地删了 → 远端也删）
+rsync -avz --delete -e "ssh -i key" ./config/ root@IP:/etc/
+
+脚本范例：
+#!/bin/bash
+
+SERVER="root@IP"
+KEY="key"
+
+ssh -i $KEY $SERVER "cp -r /etc/sing-box /etc/sing-box.bak.$(date +%F-%H%M%S)"
+
+rsync -avz --delete -e "ssh -i $KEY" ./config/ $SERVER:/etc/sing-box/
+
+ssh -i $KEY $SERVER "systemctl restart sing-box"
+
+六、把你本地的 9090 端口 → 映射到 VPS 的 127.0.0.1:9090
+ssh -L 9090:127.0.0.1:9090 root@IP
+然后在你电脑浏览器打开：
+http://127.0.0.1:9090
+👉 实际访问的是：
+VPS 的 127.0.0.1:9090
+
+七、禁止ssh使用用户名+密码登录：
 nano /etc/ssh/sshd_config.d/50-cloud-init.conf
 PasswordAuthentication no
 重启服务：

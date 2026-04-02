@@ -16,6 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent
 PORT_START = 10000
 PORT_END = 20000
 
+CLASH_API_TOKEN="123456"
 NODES_PATH = BASE_DIR / "singbox/nodes.json"
 DOCKER_COMPOSE_PATH = BASE_DIR / "docker-compose.yml"
 
@@ -288,26 +289,6 @@ def fill_placeholders(obj, tls_templates=None, node_tag=None):
 
     return obj
 
-# 协议 -> 要映射的端口类型
-# tcp: 只映射 TCP
-# udp: 只映射 UDP
-# both: TCP 和 UDP
-PROTOCOL_PORT_TYPE = {
-    "vless": "tcp",
-    "tuic": "udp",
-    "hysteria2": "udp",
-    "shadowsocks": "both",
-    "trojan": "tcp",
-    "socks": "tcp",
-    "http": "tcp",
-    "tun": None,   # 不映射 Docker
-    "direct": None,
-    "block": None,
-    "selector": None,
-    "urltest": None,
-}
-
-
 def assign_ports_for_node(tag, protocols, user_ports=None):
     """
     给每个协议分配端口：
@@ -518,9 +499,25 @@ def build_exit_outbounds(node, server_config):
         upsert_by_tag(server_config["outbounds"], ob)
         node["outbound_tags"].append(ob["tag"])
 
-def build_defaults(config):
+def build_defaults(config, ui_=None):
     if "log" not in config:
         config["log"] = {"level": "info"}
+    if "experimental" not in config:
+        if ui_:
+            config["experimental"] = {
+                "clash_api": {
+                    "external_controller": "127.0.0.1:9090",
+                    "external_ui": "dashboard",
+                    "secret": CLASH_API_TOKEN
+                }
+            }
+        else:
+            config["experimental"] = {
+                "clash_api": {
+                    "external_controller": "0.0.0.0:9090",
+                    "secret": CLASH_API_TOKEN
+                }
+            }
 
 def apply_patches(server_config, client_config):
     # -------- direct --------
@@ -553,7 +550,7 @@ def apply_patches(server_config, client_config):
     # -------- selector / urltest --------
     build_dynamic_outbounds(client_config)
     build_defaults(server_config)
-    build_defaults(client_config)
+    build_defaults(client_config, True)
 # -----------------------
 # Selector / URLTest
 # -----------------------
@@ -567,7 +564,7 @@ def build_dynamic_outbounds(client_config):
         "tag": "auto-selector",
         "type": "selector",
         "outbounds": all_tags,
-        "default": all_tags[0],
+        "default": all_tags[-1],
         "interrupt_exist_connections": False,
     }
     client_config["outbounds"].append(selector_outbound)
@@ -575,7 +572,7 @@ def build_dynamic_outbounds(client_config):
     urltest_outbound = {
         "tag": "auto-proxy",
         "type": "urltest",
-        "outbounds": all_tags,
+        "outbounds": ["auto-selector"],
         "url": "https://www.microsoft.com",
     }
     client_config["outbounds"].append(urltest_outbound)
@@ -627,22 +624,6 @@ def apply_relay(server_config):
         }
         rules.insert(0, rule)  # 优先级靠前
 
-
-def run_manage_users():
-    script = BASE_DIR / "manage_users.py"
-
-    if not script.exists():
-        print("⚠️ 未找到 manage_users.py，跳过用户同步")
-        return
-
-    print("🔄 同步用户配置...")
-
-    ret = os.system(f"python3 {script} --refresh")
-
-    if ret != 0:
-        print("❌ 用户同步失败")
-    else:
-        print("✅ 用户同步完成")
 # -----------------------
 # 防火墙
 # -----------------------
@@ -874,13 +855,21 @@ def main():
         "dns": dns_template.get("dns-client", {})
     }
 
+    def is_real_protocol(name):
+        if name in SPECIAL_OUTBOUNDS or name in SPECIAL_INBOUNDS:
+            return False
+        proto = protocols_template.get(name, {})
+        return "inbound" in proto or "outbound" in proto
 
     protocols = []
     if args.protocols:
         for p in args.protocols:
             protocols.extend(p.split(","))
     else:
-        protocols = list(protocols_template.keys())
+        protocols = [
+            name for name in protocols_template.keys()
+            if is_real_protocol(name)
+        ]
 
     if args.add:
         if args.type == "relay" and not args.next:
@@ -913,7 +902,6 @@ def main():
         # 同步端口到 docker-compose
         update_docker_compose_ports(server_config)
         restart_singbox_container()
-        #run_manage_users()
 
     if args.firewall:
         server_config = load_json(server_path)

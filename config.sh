@@ -8,9 +8,6 @@ USER_EMAIL="yourmail@gmail.com"
 # 时区
 TIMEZONE="America/Los_Angeles"
 
-# Sing-box 各协议监听端口
-SINGBOX_PORT_START=10000
-SINGBOX_PORT_END=10006
 
 # Reality TLS 配置
 SNI="www.microsoft.com"
