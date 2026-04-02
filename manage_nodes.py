@@ -44,6 +44,7 @@ PROTOCOL_PORT_TYPE = {
     "trojan": "tcp",
     "socks": "tcp",
     "http": "tcp",
+    "wireguard": "udp",
     "tun": None,   # 不映射 Docker
     "direct": None,
     "block": None,
@@ -631,14 +632,25 @@ def collect_ports_from_config(server_config):
     """
     返回 dict: port -> 类型
       例如 {443: "tcp", 10000: "both"}
+    支持 TCP/UDP 共用端口
     """
     ports = {}
-    for i in server_config.get("inbounds", []):
-        port = i.get("listen_port")
-        proto = i.get("type")
-        if not port or proto not in PROTOCOL_PORT_TYPE:
-            continue
-        ports[port] = PROTOCOL_PORT_TYPE[proto]
+
+    def process(items):
+        for i in items:
+            port = i.get("listen_port")
+            proto = i.get("type")
+            if not port or port == 0 or proto not in PROTOCOL_PORT_TYPE:
+                continue
+            typ = PROTOCOL_PORT_TYPE[proto]
+            if port in ports:
+                if ports[port] != typ:
+                    ports[port] = "both"
+            else:
+                ports[port] = typ
+
+    process(server_config.get("inbounds", []))
+    process(server_config.get("endpoints", []))
     return ports
 
 def apply_firewall(server_config):
@@ -668,22 +680,14 @@ def apply_firewall(server_config):
 
 def update_docker_compose_ports(server_config):
     port_mappings = []
-
-    for i in server_config.get("inbounds", []):
-        port = i.get("listen_port")
-        proto = i.get("type")
-        if not port or proto not in PROTOCOL_PORT_TYPE:
-            continue
-
-        mapping_type = PROTOCOL_PORT_TYPE[proto]
-        if mapping_type == "tcp":
-            port_mappings.append(f"{port}:{port}/tcp")
-        elif mapping_type == "udp":
-            port_mappings.append(f"{port}:{port}/udp")
-        elif mapping_type == "both":
+    port_map = collect_ports_from_config(server_config)
+    for port, typ in port_map.items():
+        if typ == "both":
             port_mappings.append(f"{port}:{port}/tcp")
             port_mappings.append(f"{port}:{port}/udp")
-        # None 表示不映射
+        else:
+            port_mappings.append(f"{port}:{port}/{typ}")
+
 
     if not port_mappings:
         print("⚠️ 没有有效端口需要同步到 Docker Compose")
@@ -769,13 +773,30 @@ def lint_config(server_config, client_config):
     check_dns(server_config.get("dns"))
     check_dns(client_config.get("dns"))
 
-    ports = set()
+    ports = {}  # {port: set("tcp", "udp")}
     for i in server_config.get("inbounds", []):
         p = i.get("listen_port")
-        if p:
-            if p in ports:
-                errors.append(f"❌ 端口冲突: {p}")
-            ports.add(p)
+        proto_name = i.get("type")
+        if not p or not proto_name:
+            continue
+        proto_type = PROTOCOL_PORT_TYPE.get(proto_name)
+        # 不需要映射端口的协议跳过
+        if proto_type is None:
+            continue
+        types = set()
+        if proto_type in ("tcp", "both"):
+            types.add("tcp")
+        if proto_type in ("udp", "both"):
+            types.add("udp")
+        # 检查冲突
+        if p in ports:
+            conflict = ports[p] & types
+            if conflict:
+                errors.append(f"❌ 端口冲突: {p} ({'/'.join(conflict)})")
+
+            ports[p].update(types)
+        else:
+            ports[p] = types
 
     if errors:
         print("\n".join(errors))
@@ -827,6 +848,7 @@ def main():
     parser.add_argument("--firewall", action="store_true")
     parser.add_argument("--lint", action="store_true")
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--refresh", action="store_true")
     # 新增节点类型参数
     parser.add_argument("--type", choices=["normal", "relay", "exit"], default="normal",
                         help="节点类型: normal/relay/exit")
@@ -888,7 +910,7 @@ def main():
             nodes = delete_node(t)
 
     changed = (old_nodes != nodes)
-    if changed:
+    if changed or args.refresh:
         build(server_config, client_config)
 
         apply_patches(server_config, client_config)
