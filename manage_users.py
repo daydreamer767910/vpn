@@ -60,6 +60,7 @@ parser.add_argument("--sync", action="store_true", help="同步journal(在目录
 parser.add_argument("--enable", nargs="*")
 parser.add_argument("--extend", type=int, help="恢复或新增用户时延长有效期，单位天")
 parser.add_argument("--refresh", nargs="*", help="刷新指定用户uuid 和 password,同步到服务和客户端配置,但保留subscription token")
+parser.add_argument("--apply", action="store_true", help="仅同步用户到服务端配置（不修改用户数据）")
 args = parser.parse_args()
 
 # ------------------------
@@ -169,6 +170,7 @@ def main():
     updated_users = set()
     users_updated = False
     config_updated = False
+    force_apply = args.apply
     now = datetime.datetime.now()
 
     # ------------------------
@@ -309,7 +311,7 @@ def main():
             if u.get("enabled", True) 
             and (not u.get("nodes") or "all" in u.get("nodes") or node in u.get("nodes"))
         ]
-        if old_users != new_users:
+        if force_apply or old_users != new_users:
             inbound["users"] = new_users
             config_updated = True
 

@@ -625,6 +625,22 @@ def apply_relay(server_config):
         }
         rules.insert(0, rule)  # 优先级靠前
 
+def run_manage_users():
+    script = BASE_DIR / "manage_users.py"
+
+    if not script.exists():
+        print("⚠️ 未找到 manage_users.py，跳过用户同步")
+        return
+
+    print("🔄 同步用户配置...")
+
+    ret = os.system(f"python3 {script} --apply")
+
+    if ret != 0:
+        print("❌ 用户同步失败")
+    else:
+        print("✅ 用户同步完成")
+
 # -----------------------
 # 防火墙
 # -----------------------
@@ -921,6 +937,7 @@ def main():
         save_json(server_path, server_config)
         save_json(client_path, client_config)
         print("✅ 已更新配置")
+        run_manage_users()
         # 同步端口到 docker-compose
         update_docker_compose_ports(server_config)
         restart_singbox_container()
