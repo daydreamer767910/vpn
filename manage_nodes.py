@@ -574,7 +574,7 @@ def build_dynamic_outbounds(client_config):
         "tag": "auto-proxy",
         "type": "urltest",
         "outbounds": ["auto-selector"],
-        "url": "https://www.microsoft.com",
+        "url": "https://www.gstatic.com",
     }
     client_config["outbounds"].append(urltest_outbound)
 
@@ -881,7 +881,7 @@ def main():
     server_config = {
         "inbounds": [],
         "outbounds": [],
-        "endpoints": endpoints_template,
+        "endpoints": endpoints_template.get("endpoint-server", {}),
         "route": route_template.get("route-server", {}),
         "dns": dns_template.get("dns-server", {})
     }
@@ -889,6 +889,7 @@ def main():
     client_config = {
         "inbounds": [],
         "outbounds": [],
+        "endpoints": endpoints_template.get("endpoint-client", {}),
         "route": route_template.get("route-client", {}),
         "dns": dns_template.get("dns-client", {})
     }

@@ -4,20 +4,6 @@
       {
         "type": "local",
         "tag": "local"
-      },
-      {
-        "type": "tailscale",
-        "tag": "tailscale",
-        "endpoint": "tailscale-ep"
-      }
-    ],
-    "rules": [
-      {
-        "domain_suffix": [
-          "${TS_DOMAIN_SUFFIX}"
-        ],
-        "action": "route",
-        "server": "tailscale"
       }
     ],
     "strategy": "${DNS_STRATEGY}",
@@ -38,7 +24,8 @@
       {
         "server": "1.1.1.1",
         "tag": "remote",
-        "type": "https"
+        "type": "https",
+        "detour": "auto-proxy"
       }
     ],
     "rules": [

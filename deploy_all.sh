@@ -104,7 +104,8 @@ chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 echo "==== Obtaining Let's Encrypt certificates..."
 
 if certbot certonly --standalone \
-    $(printf -- "-d %s " "${DOMAINLIST[@]}") \
+  #  $(printf -- "-d %s " "${DOMAINLIST[@]}") \
+    -d "$DOMAIN" \
     --non-interactive \
     --agree-tos \
     -m "$USER_EMAIL"
@@ -226,7 +227,6 @@ chown $DEPLOY_USER:$DEPLOY_USER $CLIENT_USERS_DIR
 echo "[INFO] Generating Reality keypair via Docker..."
 
 KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate reality-keypair)
-
 export REALITY_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
 export REALITY_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
 export REALITY_SHORT_ID=$(openssl rand -hex 8)
@@ -235,15 +235,28 @@ echo "Private: $REALITY_PRIVATE_KEY"
 echo "Public : $REALITY_PUBLIC_KEY"
 echo "short id: $REALITY_SHORT_ID"
 echo "======================"
+
+KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate wg-keypair)
+export WG_SRV_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
+export WG_SRV_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
+echo "==== Wireguard Host Keys ===="
+echo "Private: $WG_SRV_PRIVATE_KEY"
+echo "Public : $WG_SRV_PUBLIC_KEY"
+echo "======================"
+KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate wg-keypair)
+export WG_CLNT_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
+export WG_CLNT_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
+echo "==== Wireguard Peer Keys ===="
+echo "Private: $WG_CLNT_PRIVATE_KEY"
+echo "Public : $WG_CLNT_PUBLIC_KEY"
+echo "======================"
 export DOMAIN_LOCAL_STR=$(printf '"%s",\n' "${DOMAIN_LOCAL_LIST[@]}" | sed '$ s/,$//')
 export SNI
 export DNS_STRATEGY
-export TS_AUTH_KEY
-export TS_HOSTNAME
-export TS_HOSTIP
-export TS_EXIT_NODE
-export TS_DOMAIN_SUFFIX
-export DOMAIN0="${DOMAINLIST[0]}"
+export WG_HOSTIPS
+export WG_SUBNET
+export WG_PORT
+export DOMAIN
 
 for t in template/*.json; do
     filename=$(basename "$t")

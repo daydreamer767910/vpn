@@ -8,11 +8,11 @@
 	"certificate_path": "/app/cert/cert.pem",
 	"enabled": true,
 	"key_path": "/app/cert/privkey.pem",
-	"server_name": "${DOMAIN0}"
+	"server_name": "${DOMAIN}"
   },
   "tls-out": {
 	"enabled": true,
-	"server_name": "${DOMAIN0}",
+	"server_name": "${DOMAIN}",
 	"insecure": false,
 	"alpn": [
 		"h3"

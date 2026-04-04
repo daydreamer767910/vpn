@@ -1,44 +1,59 @@
-[
-  {
-    "address": [
-      "172.16.0.2/32",
-      "2606:4700:110:8b01:3e09:a4a3:83d4:c9e7/128"
-    ],
-    "listen_port": 0,
-    "mtu": 1420,
-    "peers": [
-      {
-        "address": "engage.cloudflareclient.com",
-        "allowed_ips": [
-          "0.0.0.0/0",
-          "::/0"
-        ],
-        "port": 2408,
-        "public_key": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-        "reserved": [
-          253,
-          77,
-          206
-        ]
-      }
-    ],
-    "private_key": "NSENGZEwfRKQ/hxFd8FVV+/wVcO9576Xwyj5Y6YudKM=",
-    "tag": "warp-2000",
-    "type": "wireguard"
-  },
-  {
-    "accept_routes": false,
-    "auth_key": "${TS_AUTH_KEY}",
-    "control_url": "https://controlplane.tailscale.com",
-    "domain_resolver": "local",
-    "exit_node": "${TS_EXIT_NODE}",
-    "exit_node_allow_lan_access": true,
-    "hostname": "${TS_HOSTNAME}",
-    "state_directory": "/app/singbox/.tailscale",
-    "system_interface": false,
-    "system_interface_mtu": 1280,
-    "system_interface_name": "tailscale-tun",
-    "tag": "tailscale-ep",
-    "type": "tailscale"
-  }
-]
+{
+  "endpoint-server":[
+    {
+      "type": "wireguard",
+      "tag": "wg-ep",
+      "mtu": 1480,
+      "address": [${WG_HOSTIPS}],
+      "private_key": "${WG_SRV_PRIVATE_KEY}",
+      "listen_port": ${WG_PORT},
+      "system": false,
+      "udp_timeout": "5m",
+      "peers": [
+        {
+          "public_key": "${WG_CLNT_PUBLIC_KEY}",
+          "allowed_ips": ["0.0.0.0/0"]
+        }
+      ]
+    }
+  ],
+  "endpoint-client":[
+    {
+      "type": "wireguard",
+      "tag": "wg-ep-cn",
+      "detour": "auto-proxy",
+      "name": "wg0",
+      "system": true,
+      "mtu": 1380,
+      "address": ["10.0.0.2/32","fd42:42:42::2/64"],
+      "private_key": "${WG_CLNT_PRIVATE_KEY}",
+      "peers": [
+        {
+          "address": "127.0.0.1", 
+          "port": ${WG_PORT},
+          "public_key": "${WG_SRV_PUBLIC_KEY}",
+          "allowed_ips": [${WG_HOSTIPS}],
+          "persistent_keepalive_interval":25
+        }
+      ]
+    },
+    {
+      "type": "wireguard",
+      "tag": "wg-ep",
+      "name": "wg1",
+      "system": true,
+      "mtu": 1480,
+      "address": ["10.0.0.2/32","fd42:42:42::2/64"],
+      "private_key": "${WG_CLNT_PRIVATE_KEY}",
+      "peers": [
+        {
+          "address": "${DOMAIN}", 
+          "port": ${WG_PORT},
+          "public_key": "${WG_SRV_PUBLIC_KEY}",
+          "allowed_ips": [${WG_HOSTIPS}],
+          "persistent_keepalive_interval":25
+        }
+      ]
+    }
+  ]
+}

@@ -28,7 +28,7 @@
     "outbound":{
       "type": "vless",
       "tag": "__DOLLAR__tag-vless-out",
-      "server": "${DOMAIN0}",
+      "server": "${DOMAIN}",
       "server_port": 8443,
       "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
       "flow": "xtls-rprx-vision",
@@ -48,7 +48,7 @@
 	"outbound":{
 		"type": "tuic",
 		"tag": "__DOLLAR__tag-tuic-out",
-		"server": "${DOMAIN0}",
+		"server": "${DOMAIN}",
 		"server_port": 443,
 		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
 		"password": "123456",
@@ -76,7 +76,7 @@
 	"outbound":{
 		"type": "hysteria2",
 		"tag": "__DOLLAR__tag-hy2-out",
-		"server": "${DOMAIN0}",
+		"server": "${DOMAIN}",
 		"server_port": 8443,
 		"obfs": {
 			"type": "salamander",

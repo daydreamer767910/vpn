@@ -5,6 +5,9 @@
 DEPLOY_USER="vpn"
 USER_EMAIL="yourmail@gmail.com"
 
+# 域名
+DOMAIN="xxx.yyy.zzz"
+
 # 时区
 TIMEZONE="America/Los_Angeles"
 
@@ -32,18 +35,12 @@ DOMAIN_LOCAL_LIST=(".cn"
           "youku.com"
           "douyin.com")
 # endpoint
-TS_AUTH_KEY="tskey-auth-kWohtATBST11CNTRL-dc2CsT1CargmmW9yVPgPrg8RDjA5ZJFQ6"
-TS_HOSTNAME="dd2001"
-TS_HOSTIP='"100.89.79.85","fd7a:115c:a1e0::1d35:4f55"'
-TS_EXIT_NODE="100.68.141.58"
-TS_DOMAIN_SUFFIX="tail4e565.ts.net"
-
-
-# 域名列表
-DOMAINLIST=("xxx.yyy.zzz" "aaa.bbb.ccc")
+WG_HOSTIPS='"10.0.0.1/24","fd42:42:42::1/64"'
+WG_SUBNET='"10.0.0.0/24","fd42:42:42::/64"'
+WG_PORT=51820
 
 # 证书目录
-CERT_SRC="/etc/letsencrypt/live/${DOMAINLIST[0]}"
+CERT_SRC="/etc/letsencrypt/live/$DOMAIN"
 CERT_DST="/home/$DEPLOY_USER/cert"
 
 # Docker 容器名
