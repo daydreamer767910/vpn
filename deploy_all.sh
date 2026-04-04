@@ -104,7 +104,6 @@ chown -R $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER
 echo "==== Obtaining Let's Encrypt certificates..."
 
 if certbot certonly --standalone \
-  #  $(printf -- "-d %s " "${DOMAINLIST[@]}") \
     -d "$DOMAIN" \
     --non-interactive \
     --agree-tos \

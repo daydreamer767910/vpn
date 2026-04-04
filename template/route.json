@@ -5,7 +5,7 @@
         "action": "route",
         "outbound": "direct",
         "ip_cidr": [
-              ${TS_HOSTIP}
+              ${WG_HOSTIPS}
             ]
       },
       {

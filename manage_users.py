@@ -110,7 +110,7 @@ def parse_config_sh(sh_file: Path):
         return None, None
     cmd = f'''
     source "{sh_file}"
-    if [ -n "${{DOMAINLIST[0]}}" ]; then echo FIRST_DOMAIN="${{DOMAINLIST[0]}}"; fi
+    if [ -n "$DOMAIN" ]; then echo FIRST_DOMAIN="$DOMAIN"; fi
     if [ -n "$SNI" ]; then echo REALITY_SNI="$SNI"; fi
     '''
     result = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
@@ -121,7 +121,7 @@ def parse_config_sh(sh_file: Path):
             first_domain = line.split("=",1)[1].strip()
         elif line.startswith("REALITY_SNI="):
             reality_sni = line.split("=",1)[1].strip()
-    if not first_domain: ts_print("⚠️ 没找到 DOMAINLIST[0]")
+    if not first_domain: ts_print("⚠️ 没找到 DOMAIN")
     if not reality_sni: ts_print("⚠️ 没找到 SNI")
     return first_domain, reality_sni
 
