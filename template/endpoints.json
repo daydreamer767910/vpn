@@ -3,7 +3,7 @@
     {
       "type": "wireguard",
       "tag": "wg-ep",
-      "mtu": 1480,
+      "mtu": 1380,
       "address": [${WG_HOSTIPS}],
       "private_key": "${WG_SRV_PRIVATE_KEY}",
       "listen_port": ${WG_PORT},
@@ -42,7 +42,7 @@
       "tag": "wg-ep",
       "name": "wg1",
       "system": false,
-      "mtu": 1480,
+      "mtu": 1380,
       "address": ["10.0.0.2/32","fd42:42:42::2/64"],
       "private_key": "${WG_CLNT_PRIVATE_KEY}",
       "peers": [
