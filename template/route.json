@@ -30,6 +30,10 @@
   "route-client": {
     "rules": [
       {
+        "inbound":["wg-ep","wg-ep-cn"],
+        "outbound": "direct"
+      },
+      {
         "action": "sniff"
       },
       {
