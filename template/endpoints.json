@@ -12,7 +12,7 @@
       "peers": [
         {
           "public_key": "${WG_CLNT_PUBLIC_KEY}",
-          "allowed_ips": ["0.0.0.0/0"]
+          "allowed_ips": ["0.0.0.0/0","::/0"]
         }
       ]
     }
