@@ -32,7 +32,7 @@
           "address": "127.0.0.1", 
           "port": ${WG_PORT},
           "public_key": "${WG_SRV_PUBLIC_KEY}",
-          "allowed_ips": [${WG_HOSTIPS}],
+          "allowed_ips": [${WG_SUBNET}],
           "persistent_keepalive_interval":25
         }
       ]
@@ -50,7 +50,7 @@
           "address": "${DOMAIN}", 
           "port": ${WG_PORT},
           "public_key": "${WG_SRV_PUBLIC_KEY}",
-          "allowed_ips": [${WG_HOSTIPS}],
+          "allowed_ips": [${WG_SUBNET}],
           "persistent_keepalive_interval":25
         }
       ]
