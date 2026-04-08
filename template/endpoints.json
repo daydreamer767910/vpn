@@ -29,7 +29,7 @@
       "private_key": "${WG_CLNT_PRIVATE_KEY}",
       "peers": [
         {
-          "address": "127.0.0.1", 
+          "address": "${DOMAIN}", 
           "port": ${WG_PORT},
           "public_key": "${WG_SRV_PUBLIC_KEY}",
           "allowed_ips": ["0.0.0.0/0","::/0"],

@@ -52,6 +52,20 @@ PROTOCOL_PORT_TYPE = {
     "urltest": None,
 }
 
+ENDPOINT_TYPES = {
+    "wireguard",
+    "tailscale",
+    # 未来可扩展
+}
+
+def run_cmd(cmd):
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"❌ 命令失败: {' '.join(cmd)}")
+        print(result.stderr)
+        raise RuntimeError("command failed")
+    return result.stdout
+
 def load_json(path):
     path = Path(path)
     if not path.exists():
@@ -219,26 +233,50 @@ def try_base64_decode(text):
 def parse_json_subscription(content):
     data = json.loads(content)
 
-    outbounds = []
+    result = {
+        "outbounds": [],
+        "endpoints": []
+    }
 
-    # sing-box 格式
-    if isinstance(data, dict) and "outbounds" in data:
-        for ob in data["outbounds"]:
+    if isinstance(data, dict):
+
+        # ---------- endpoints ----------
+        for ep in data.get("endpoints", []):
+            if isinstance(ep, dict) and "type" in ep:
+                result["endpoints"].append(copy.deepcopy(ep))
+
+        # ---------- outbounds ----------
+        for ob in data.get("outbounds", []):
             if isinstance(ob, dict) and "type" in ob:
-                outbounds.append(copy.deepcopy(ob))
+                result["outbounds"].append(copy.deepcopy(ob))
 
-    # 纯数组
+        # ---------- 兼容错误格式（关键）----------
+        # 有些订阅会把 endpoint 写进 outbounds（很常见）
+        fixed_outbounds = []
+        for ob in result["outbounds"]:
+            if ob.get("type") in ENDPOINT_TYPES:
+                result["endpoints"].append(ob)
+            else:
+                fixed_outbounds.append(ob)
+
+        result["outbounds"] = fixed_outbounds
+
     elif isinstance(data, list):
         for ob in data:
-            if isinstance(ob, dict) and "type" in ob:
-                outbounds.append(copy.deepcopy(ob))
+            if not isinstance(ob, dict):
+                continue
+
+            if ob.get("type") in ENDPOINT_TYPES:
+                result["endpoints"].append(copy.deepcopy(ob))
+            else:
+                result["outbounds"].append(copy.deepcopy(ob))
 
     else:
         raise RuntimeError("❌ 不支持的 JSON 订阅格式")
 
-    print(f"✅ 成功解析: {len(outbounds)} 个订阅")
+    print(f"✅ outbounds={len(result['outbounds'])}, endpoints={len(result['endpoints'])}")
 
-    return outbounds
+    return result
 
 def parse_subscription(url):
     content = fetch_subscription(url)
@@ -266,7 +304,10 @@ def parse_subscription(url):
         except Exception as e:
             print(f"⚠️ 跳过: {line[:30]}... {e}")
 
-    return outbounds
+    return {
+        "outbounds": outbounds,
+        "endpoints": []
+    }
 
 # -----------------------
 # 占位符
@@ -358,7 +399,7 @@ def assign_ports_for_node(tag, protocols, user_ports=None):
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(tag, protocols, type_="normal", next_=None, sub_=None, ports_=None):
+def add_node(tag, protocols, sub_=None, ports_=None):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
@@ -368,31 +409,23 @@ def add_node(tag, protocols, type_="normal", next_=None, sub_=None, ports_=None)
     node = {
         "tag": tag,
         "protocols": protocols,
-        "type": type_,
         "ports": assigned_ports,
     }
 
-    if type_ == "relay":
-        node["next"] = next_
-    elif type_ == "exit":
-        node["source"] = sub_
+    node["source"] = sub_
 
     nodes.append(node)
     return nodes
 
 
-def update_node(tag, protocols=None, type_=None, next_=None, sub_=None, ports_=None):
+def update_node(tag, protocols=None, sub_=None, ports_=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
                 n["protocols"] = protocols
-            if type_:
-                n["type"] = type_
-            if type_ == "relay" and next_:
-                n["next"] = next_
             if ports_:
                 n["ports"] = assign_ports_for_node(tag, protocols, ports_)
-            if type_ == "exit":
+            if sub_:
                 n["source"] = sub_
             return nodes
 
@@ -422,23 +455,14 @@ def upsert_by_tag(arr, item):
 # 构建 config
 # -----------------------
 def build(server_config, client_config):
-    """
-    构建配置：
-      - normal 节点A类:生成 inbound ,build config for both server and client
-      - relay 节点B类:生成 inbound ,build config for both server and client
-      - exit 节点C类:生成 outbound,build config for server only
-    """
 
     for node in nodes:
         node["inbound_tags"] = []
         node["outbound_tags"] = []
         tag = node["tag"]
-        type_ = node.get("type", "normal")  # 默认为 normal
+        build_endpoints(node, client_config)
         protos = node["protocols"]
 
-        if type_ == "exit":
-            build_exit_outbounds(node, server_config)
-            continue
         for i, proto_name in enumerate(protos):
             if proto_name not in protocols_template:
                 continue
@@ -447,7 +471,7 @@ def build(server_config, client_config):
             proto = protocols_template[proto_name]
 
             # inbound
-            if type_ in ("normal", "relay") and "inbound" in proto:
+            if "inbound" in proto:
                 inbound = copy.deepcopy(proto["inbound"])
                 inbound = fill_placeholders(inbound, tls_template, tag)
 
@@ -468,37 +492,27 @@ def build(server_config, client_config):
                 upsert_by_tag(client_config["outbounds"], outbound)
 
 
-def build_exit_outbounds(node, server_config):
+def build_endpoints(node, client_config):
     tag = node["tag"]
-
-    # ---------- 获取节点 ----------
+     # ---------- 获取节点 ----------
     if node.get("source"):
-        outbounds = parse_subscription(node["source"])
+        sub = parse_subscription(node["source"])
+
+        outbounds = sub.get("outbounds", [])
+        endpoints = sub.get("endpoints", [])
     else:
-        raise RuntimeError(f"❌ exit 节点缺少 source: {tag}")
+        return
+
+    for ep in endpoints:
+        ep["tag"] = f"{tag}-{ep["tag"]}"
+        upsert_by_tag(client_config["endpoints"], ep)
 
     # ---------- 协议过滤 ----------
-    protocols = node.get("protocols")
-    if protocols:
-        outbounds = [o for o in outbounds if o.get("type") in protocols]
+    outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
 
-    if not outbounds:
-        raise RuntimeError(f"❌ exit 节点无可用 outbound: {tag}")
-
-    # ---------- 选择策略 ----------
-    selected = [random.choice(outbounds)]
-
-    # ---------- 写入 ----------
-    node.setdefault("outbound_tags", [])
-
-    for i, ob in enumerate(selected):
-        ob = ob.copy()
-
-        # 避免 tag 冲突（关键）
-        ob["tag"] = f"{tag}-{i}-{ob['type']}-out"
-
-        upsert_by_tag(server_config["outbounds"], ob)
-        node["outbound_tags"].append(ob["tag"])
+    for ob in outbounds:
+        ob["tag"] = f"{tag}-{ob["tag"]}"
+        upsert_by_tag(client_config["outbounds"], ob)
 
 def build_defaults(config, ui_=None):
     if "log" not in config:
@@ -549,14 +563,38 @@ def apply_patches(server_config, client_config):
             upsert_by_tag(client_config["inbounds"], inbound)
 
     # -------- selector / urltest --------
+    # 👉 先处理 endpoint
+    build_endpoint_outbounds(client_config)
     build_dynamic_outbounds(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
+
 # -----------------------
 # Selector / URLTest
 # -----------------------
+def is_valid_selector_outbound(o):
+    tag = o.get("tag")
+    typ = o.get("type")
+
+    # 排除固定 tag
+    if tag in {"direct", "block", "auto-selector", "auto-proxy"}:
+        return False
+
+    # 👉 关键逻辑
+    if typ == "direct":
+        # 只有带 detour 的才保留（即 endpoint outbound）
+        return "detour" in o
+
+    return True
+
 def build_dynamic_outbounds(client_config):
-    all_tags = [o.get("tag") for o in client_config.get("outbounds", []) if o.get("tag") != "direct"]
+    outbounds = client_config.get("outbounds", [])
+
+    all_tags = [
+        o.get("tag")
+        for o in outbounds
+        if is_valid_selector_outbound(o)
+    ]
 
     if not all_tags:
         return
@@ -568,7 +606,8 @@ def build_dynamic_outbounds(client_config):
         "default": all_tags[-1],
         "interrupt_exist_connections": False,
     }
-    client_config["outbounds"].append(selector_outbound)
+
+    upsert_by_tag(client_config["outbounds"], selector_outbound)
 
     urltest_outbound = {
         "tag": "auto-proxy",
@@ -576,54 +615,8 @@ def build_dynamic_outbounds(client_config):
         "outbounds": ["auto-selector"],
         "url": "https://www.gstatic.com",
     }
-    client_config["outbounds"].append(urltest_outbound)
 
-def apply_relay(server_config):
-    """
-    为类型为 relay 的节点生成 route 规则：
-      - 节点自身必须有 inbound_tags
-      - next 节点必须存在 outbound_tags
-    """
-    node_map = {n["tag"]: n for n in nodes}
-    route = server_config.setdefault("route", {})
-    rules = route.setdefault("rules", [])
-
-    for node in nodes:
-        if node.get("type") != "relay":
-            continue
-
-        src_tag = node["tag"]
-        dst_tag = node.get("next")
-
-        if not dst_tag:
-            raise RuntimeError(f"❌ relay 节点缺少 next: {src_tag}")
-
-        if dst_tag not in node_map:
-            raise RuntimeError(f"❌ relay 目标不存在: {dst_tag}")
-
-        if dst_tag == src_tag:
-            raise RuntimeError(f"❌ relay 不能指向自己: {src_tag}")
-
-        src_node = node
-        dst_node = node_map[dst_tag]
-
-        if not src_node.get("inbound_tags"):
-            raise RuntimeError(f"❌ relay 节点没有 inbound_tags: {src_tag}")
-
-        if not dst_node.get("outbound_tags"):
-            raise RuntimeError(f"❌ 目标节点没有 outbound_tags: {dst_tag}")
-
-        # 简单规则：每个 relay 节点默认只用第一个 inbound_tag 对应第一个 outbound_tag
-        src_in_tag = src_node["inbound_tags"]
-        dst_out_tag = dst_node["outbound_tags"][0]
-
-        # 插入 route 规则
-        rule = {
-            "action": "route",
-            "inbound": src_in_tag,
-            "outbound": dst_out_tag
-        }
-        rules.insert(0, rule)  # 优先级靠前
+    upsert_by_tag(client_config["outbounds"], urltest_outbound)
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -634,12 +627,9 @@ def run_manage_users():
 
     print("🔄 同步用户配置...")
 
-    ret = os.system(f"python3 {script} --apply")
+    ret = run_cmd(["python3", str(script), "--apply"])
 
-    if ret != 0:
-        print("❌ 用户同步失败")
-    else:
-        print("✅ 用户同步完成")
+    print(ret)
 
 # -----------------------
 # 防火墙
@@ -674,23 +664,23 @@ def apply_firewall(server_config):
 
     print("🔥 同步防火墙...")
 
-    os.system("ufw --force reset")
-    os.system("ufw default deny incoming")
-    os.system("ufw allow 22/tcp")
-    os.system("ufw allow 80/tcp")
-    os.system("ufw allow 443/tcp")
+    run_cmd(["ufw", "--force", "reset"])
+    run_cmd(["ufw", "default", "deny", "incoming"])
+    run_cmd(["ufw", "allow", "22/tcp"])
+    run_cmd(["ufw", "allow", "80/tcp"])
+    run_cmd(["ufw", "allow", "443/tcp"])
 
     for port, typ in port_map.items():
         if typ == "tcp":
-            os.system(f"ufw allow {port}/tcp")
+            run_cmd(["ufw", "allow", "{port}/tcp"])
         elif typ == "udp":
-            os.system(f"ufw allow {port}/udp")
+            run_cmd(["ufw", "allow", "{port}/udp"])
         elif typ == "both":
-            os.system(f"ufw allow {port}/tcp")
-            os.system(f"ufw allow {port}/udp")
+            run_cmd(["ufw", "allow", "{port}/tcp"])
+            run_cmd(["ufw", "allow", "{port}/udp"])
         # None 表示不开放
 
-    os.system("ufw --force enable")
+    run_cmd(["ufw", "--force", "enable"])
 
     print(f"✅ 已开放端口: {sorted(port_map.keys())}")
 
@@ -865,13 +855,7 @@ def main():
     parser.add_argument("--lint", action="store_true")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--refresh", action="store_true")
-    # 新增节点类型参数
-    parser.add_argument("--type", choices=["normal", "relay", "exit"], default="normal",
-                        help="节点类型: normal/relay/exit")
-    # relay 特有字段
-    parser.add_argument("--next", help="relay 节点的下一跳目标 tag")
-    # exit 特有字段
-    parser.add_argument("--sub", help="exit 节点远端订阅配置")
+    parser.add_argument("--sub", help="其它节点远端订阅配置")
 
     args = parser.parse_args()
 
@@ -911,16 +895,12 @@ def main():
         ]
 
     if args.add:
-        if args.type == "relay" and not args.next:
-            raise RuntimeError("❌ relay 节点必须指定 --next")
-        if args.type == "exit" and (not args.sub):
-            raise RuntimeError("❌ exit 节点必须指定 --sub")
         for t in args.add:
-            nodes = add_node(t, protocols, args.type, args.next, args.sub, args.port)
+            nodes = add_node(t, protocols, args.sub, args.port)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(t, protocols, args.type, args.next, args.sub, args.port)
+            nodes = update_node(t, protocols, args.sub, args.port)
 
     if args.delete:
         for t in args.delete:
@@ -931,8 +911,6 @@ def main():
         build(server_config, client_config)
 
         apply_patches(server_config, client_config)
-
-        apply_relay(server_config)
 
         save_nodes()
         save_json(server_path, server_config)

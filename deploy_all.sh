@@ -235,20 +235,6 @@ echo "Public : $REALITY_PUBLIC_KEY"
 echo "short id: $REALITY_SHORT_ID"
 echo "======================"
 
-KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate wg-keypair)
-export WG_SRV_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
-export WG_SRV_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
-echo "==== Wireguard Host Keys ===="
-echo "Private: $WG_SRV_PRIVATE_KEY"
-echo "Public : $WG_SRV_PUBLIC_KEY"
-echo "======================"
-KEYPAIR=$(docker run --rm ghcr.io/sagernet/sing-box generate wg-keypair)
-export WG_CLNT_PRIVATE_KEY=$(echo "$KEYPAIR" | grep PrivateKey | awk '{print $2}')
-export WG_CLNT_PUBLIC_KEY=$(echo "$KEYPAIR" | grep PublicKey | awk '{print $2}')
-echo "==== Wireguard Peer Keys ===="
-echo "Private: $WG_CLNT_PRIVATE_KEY"
-echo "Public : $WG_CLNT_PUBLIC_KEY"
-echo "======================"
 export DOMAIN_LOCAL_STR=$(printf '"%s",\n' "${DOMAIN_LOCAL_LIST[@]}" | sed '$ s/,$//')
 export SNI
 export DNS_STRATEGY
@@ -262,7 +248,8 @@ for t in template/*.json; do
     envsubst < "$t" | sed 's|__DOLLAR__|$|g' > "$TMPLT_DIR/$filename"
     chown $DEPLOY_USER:$DEPLOY_USER $TMPLT_DIR/$filename
 done
-
+su - $DEPLOY_USER -c "python3 manage_endpoints.py add wg"
+su - $DEPLOY_USER -c "python3 manage_endpoints.py export"
 echo "[INFO] template generated at $TMPLT_DIR"
 su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
 su - $DEPLOY_USER -c "docker compose up -d"
