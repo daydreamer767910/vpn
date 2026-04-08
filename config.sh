@@ -34,10 +34,7 @@ DOMAIN_LOCAL_LIST=(".cn"
           "iqiyi.com"
           "youku.com"
           "douyin.com")
-# endpoint
-WG_HOSTIPS='"10.0.0.1/32","fd42:42:42::1/128"'
-WG_SUBNET='"10.0.0.0/24","fd42:42:42::/64"'
-WG_PORT=51820
+
 
 # 证书目录
 CERT_SRC="/etc/letsencrypt/live/$DOMAIN"

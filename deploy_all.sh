@@ -251,9 +251,9 @@ done
 su - $DEPLOY_USER -c "python3 manage_endpoints.py add wg"
 su - $DEPLOY_USER -c "python3 manage_endpoints.py export"
 echo "[INFO] template generated at $TMPLT_DIR"
-su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
-su - $DEPLOY_USER -c "docker compose up -d"
 su - $DEPLOY_USER -c "python3 manage_nodes.py --add $TS_HOSTNAME"
+su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
+
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "Switch to user: su - $DEPLOY_USER"
