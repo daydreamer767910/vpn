@@ -238,9 +238,6 @@ echo "======================"
 export DOMAIN_LOCAL_STR=$(printf '"%s",\n' "${DOMAIN_LOCAL_LIST[@]}" | sed '$ s/,$//')
 export SNI
 export DNS_STRATEGY
-export WG_HOSTIPS
-export WG_SUBNET
-export WG_PORT
 export DOMAIN
 
 for t in template/*.json; do
@@ -251,12 +248,9 @@ done
 su - $DEPLOY_USER -c "python3 manage_endpoints.py add wg"
 su - $DEPLOY_USER -c "python3 manage_endpoints.py export"
 echo "[INFO] template generated at $TMPLT_DIR"
-su - $DEPLOY_USER -c "python3 manage_nodes.py --add $TS_HOSTNAME"
+su - $DEPLOY_USER -c "python3 manage_nodes.py --add $DOMAIN"
 su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
 
 echo "==== [DEPLOY] Deployment complete! ===="
 echo "Next steps:"
 echo "Switch to user: su - $DEPLOY_USER"
-echo "run python3 manage_nodes.py --add xxx to create nodes"
-echo "run sudo python3 manage_nodes.py --firewall to allow the ports"
-echo "run python3 manage_users.py --add xxx --extend days to create users"

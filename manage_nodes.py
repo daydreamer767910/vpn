@@ -563,8 +563,6 @@ def apply_patches(server_config, client_config):
             upsert_by_tag(client_config["inbounds"], inbound)
 
     # -------- selector / urltest --------
-    # 👉 先处理 endpoint
-    build_endpoint_outbounds(client_config)
     build_dynamic_outbounds(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
