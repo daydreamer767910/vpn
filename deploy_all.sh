@@ -239,6 +239,7 @@ export DOMAIN_LOCAL_STR=$(printf '"%s",\n' "${DOMAIN_LOCAL_LIST[@]}" | sed '$ s/
 export SNI
 export DNS_STRATEGY
 export DOMAIN
+export HOST=${DOMAIN%%.*}
 
 for t in template/*.json; do
     filename=$(basename "$t")
@@ -248,7 +249,7 @@ done
 su - $DEPLOY_USER -c "python3 manage_endpoints.py add wg"
 su - $DEPLOY_USER -c "python3 manage_endpoints.py export"
 echo "[INFO] template generated at $TMPLT_DIR"
-su - $DEPLOY_USER -c "python3 manage_nodes.py --add $DOMAIN"
+su - $DEPLOY_USER -c "python3 manage_nodes.py --add $HOST --port 8443 443 8443"
 su - $DEPLOY_USER -c "python3 manage_users.py --add admin"
 su - $DEPLOY_USER -c "docker compose up -d"
 echo "==== [DEPLOY] Deployment complete! ===="
