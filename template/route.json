@@ -2,20 +2,6 @@
   "route-server": {
     "rules": [
       {
-        "action": "route",
-        "outbound": "direct",
-        "ip_cidr": [
-              ${WG_HOSTIPS}
-            ]
-      },
-      {
-        "action": "route",
-        "outbound": "wg-ep",
-        "ip_cidr": [
-          ${WG_SUBNET}
-        ]
-      },
-      {
         "auth_user": [
           "warp"
         ],
