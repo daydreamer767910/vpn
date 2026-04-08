@@ -460,7 +460,7 @@ def build(server_config, client_config):
         node["inbound_tags"] = []
         node["outbound_tags"] = []
         tag = node["tag"]
-        build_endpoints(node, client_config)
+        build_subscription(node, client_config)
         protos = node["protocols"]
 
         for i, proto_name in enumerate(protos):
@@ -492,8 +492,8 @@ def build(server_config, client_config):
                 upsert_by_tag(client_config["outbounds"], outbound)
 
 
-def build_endpoints(node, client_config):
-    tag = node["tag"]
+def build_subscription(node, client_config):
+    tag = "<sub>"
      # ---------- 获取节点 ----------
     if node.get("source"):
         sub = parse_subscription(node["source"])

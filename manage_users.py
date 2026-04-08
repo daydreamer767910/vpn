@@ -333,6 +333,10 @@ def main():
             for outbound in new_config.get("outbounds", []):
                 tag = outbound.get("tag","")
                 node = tag.split("-")[0]
+                if node == "<sub>":
+                    # 保留订阅
+                    filtered_outbounds.append(outbound)
+                    continue
                 # 跳过不属于当前 outbound 的用户
                 if nodes and "all" not in nodes and node not in nodes:
                     continue
