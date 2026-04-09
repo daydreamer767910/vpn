@@ -460,7 +460,7 @@ def build(server_config, client_config):
         node["inbound_tags"] = []
         node["outbound_tags"] = []
         tag = node["tag"]
-        build_subscription(node, client_config)
+        
         protos = node["protocols"]
 
         for i, proto_name in enumerate(protos):
@@ -492,27 +492,37 @@ def build(server_config, client_config):
                 upsert_by_tag(client_config["outbounds"], outbound)
 
 
-def build_subscription(node, client_config):
-    tag = "<sub>"
-     # ---------- 获取节点 ----------
-    if node.get("source"):
-        sub = parse_subscription(node["source"])
+def build_subscription(client_config):
+    outbounds = client_config.get("outbounds", [])
+    all_tags = list(dict.fromkeys(
+        item.get("tag")
+        for item in outbounds
+        if is_valid_selector_outbound(item)
+    ))
+    detour = all_tags[-1]
+    for node in nodes:
+        tag = "<sub>"
+        # ---------- 获取节点 ----------
+        if node.get("source"):
+            sub = parse_subscription(node["source"])
 
-        outbounds = sub.get("outbounds", [])
-        endpoints = sub.get("endpoints", [])
-    else:
-        return
+            outbounds = sub.get("outbounds", [])
+            endpoints = sub.get("endpoints", [])
+        else:
+            continue
 
-    for ep in endpoints:
-        ep["tag"] = f"{tag}-{ep["tag"]}"
-        upsert_by_tag(client_config["endpoints"], ep)
+        for ep in endpoints:
+            ep["tag"] = f"{tag}-{ep["tag"]}"
+            ep["detour"] = detour
+            upsert_by_tag(client_config["endpoints"], ep)
 
-    # ---------- 协议过滤 ----------
-    outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
+        # ---------- 协议过滤 ----------
+        outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
 
-    for ob in outbounds:
-        ob["tag"] = f"{tag}-{ob["tag"]}"
-        upsert_by_tag(client_config["outbounds"], ob)
+        for ob in outbounds:
+            ob["tag"] = f"{tag}-{ob["tag"]}"
+            ob["detour"] = detour
+            upsert_by_tag(client_config["outbounds"], ob)
 
 def build_defaults(config, ui_=None):
     if "log" not in config:
@@ -563,6 +573,7 @@ def apply_patches(server_config, client_config):
             upsert_by_tag(client_config["inbounds"], inbound)
 
     # -------- selector / urltest --------
+    build_subscription(client_config)
     build_dynamic_outbounds(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
@@ -574,47 +585,59 @@ def is_valid_selector_outbound(o):
     tag = o.get("tag")
     typ = o.get("type")
 
-    # 排除固定 tag
-    if tag in {"direct", "block", "auto-selector", "auto-proxy"}:
+    if typ in SPECIAL_OUTBOUNDS or not tag:
         return False
-
-    # 👉 关键逻辑
-    if typ == "direct":
-        # 只有带 detour 的才保留（即 endpoint outbound）
-        return "detour" in o
 
     return True
 
 def build_dynamic_outbounds(client_config):
     outbounds = client_config.get("outbounds", [])
-
-    all_tags = [
-        o.get("tag")
-        for o in outbounds
-        if is_valid_selector_outbound(o)
-    ]
+    endpoints = client_config.get("endpoints", [])
+    all_tags = list(dict.fromkeys(
+        item.get("tag")
+        for item in (endpoints + outbounds)
+        if is_valid_selector_outbound(item)
+    ))
 
     if not all_tags:
         return
+    local_tags  = [t for t in all_tags if t and not t.startswith("<sub>-")]
+    remote_tags = [t for t in all_tags if t and t.startswith("<sub>-")]
 
-    selector_outbound = {
-        "tag": "auto-selector",
-        "type": "selector",
-        "outbounds": all_tags,
-        "default": all_tags[-1],
-        "interrupt_exist_connections": False,
-    }
+    if local_tags:
+        selector_outbound_local = {
+            "tag": "auto-selector",
+            "type": "selector",
+            "outbounds": local_tags,
+            "default": local_tags[-1],
+            "interrupt_exist_connections": False,
+        }
+        upsert_by_tag(client_config["outbounds"], selector_outbound_local)
 
-    upsert_by_tag(client_config["outbounds"], selector_outbound)
+    if remote_tags:
+        selector_outbound_remote = {
+            "tag": "auto-selector-sub",
+            "type": "selector",
+            "outbounds": remote_tags,
+            "default": remote_tags[-1],
+            "interrupt_exist_connections": False,
+        }
+        upsert_by_tag(client_config["outbounds"], selector_outbound_remote)
 
-    urltest_outbound = {
-        "tag": "auto-proxy",
-        "type": "urltest",
-        "outbounds": ["auto-selector"],
-        "url": "https://www.gstatic.com",
-    }
+    urltest_sources = []
+    if local_tags:
+        urltest_sources.append("auto-selector")
+    if remote_tags:
+        urltest_sources.append("auto-selector-sub")
 
-    upsert_by_tag(client_config["outbounds"], urltest_outbound)
+    if urltest_sources:
+        urltest_outbound = {
+            "tag": "auto-proxy",
+            "type": "urltest",
+            "outbounds": urltest_sources,
+            "url": "https://www.gstatic.com",
+        }
+        upsert_by_tag(client_config["outbounds"], urltest_outbound)
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
