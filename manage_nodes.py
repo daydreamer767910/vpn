@@ -491,6 +491,31 @@ def build(server_config, client_config):
                     outbound["server_port"] = port
                 upsert_by_tag(client_config["outbounds"], outbound)
 
+def build_route(client_config):
+    eps = client_config.get("endpoints", [])
+
+    # 收集 wireguard endpoint 的 tag
+    all_tags = list(dict.fromkeys(
+        ep.get("tag")
+        for ep in eps
+        if ep.get("type") == "wireguard" and ep.get("tag")
+    ))
+
+    if not all_tags:
+        return
+
+    # 确保 route 存在
+    route = client_config.setdefault("route", {})
+    rules = route.setdefault("rules", [])
+
+    # 构造规则
+    rule = {
+        "inbound": all_tags,
+        "outbound": "direct"
+    }
+
+    # 插入到最前面（优先级最高）
+    rules.insert(0, rule)
 
 def build_subscription(client_config):
     outbounds = client_config.get("outbounds", [])
@@ -575,6 +600,7 @@ def apply_patches(server_config, client_config):
     # -------- selector / urltest --------
     build_subscription(client_config)
     build_dynamic_outbounds(client_config)
+    build_route(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
 
