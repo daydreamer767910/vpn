@@ -832,33 +832,49 @@ def lint_config(server_config, client_config):
         print("✅ 配置检查通过")
 
 def show_config(server_config, client_config):
-    print("\n=== Server Inbounds ===")
+    print("\n==================== Server Inbounds ====================")
     for i in server_config.get("inbounds", []):
         tag = i.get("tag")
         proto = i.get("type")
         port = i.get("listen_port")
-        print(f"tag={tag:<20} type={proto:<12} port={port}")
+        print(f"tag={tag:<25} type={proto:<12} port={port}")
 
-    print("\n=== Server Outbounds ===")
+    print("\n==================== Server Outbounds ====================")
     for o in server_config.get("outbounds", []):
         tag = o.get("tag")
         proto = o.get("type")
         port = o.get("server_port")
-        print(f"tag={tag:<20} type={proto:<12} port={port}")
+        print(f"tag={tag:<25} type={proto:<12} port={port}")
 
-    print("\n=== Client Inbounds ===")
+    print("\n====================  Server  Endpoints  ====================")
+    for o in server_config.get("endpoints", []):
+        tag = o.get("tag")
+        proto = o.get("type")
+        port = o.get("listen_port")
+        print(f"tag={tag:<25} type={proto:<12} port={port}")
+
+    print("\n====================  Client  Inbounds  ====================")
     for i in client_config.get("inbounds", []):
         tag = i.get("tag")
         proto = i.get("type")
         port = i.get("listen_port")
-        print(f"tag={tag:<20} type={proto:<12} port={port}")
+        print(f"tag={tag:<25} type={proto:<12} port={port}")
 
-    print("\n=== Client Outbounds ===")
+    print("\n====================  Client  Outbounds  ====================")
     for o in client_config.get("outbounds", []):
         tag = o.get("tag")
         proto = o.get("type")
         port = o.get("server_port")
-        print(f"tag={tag:<20} type={proto:<12} port={port}")
+        print(f"tag={tag:<25} type={proto:<12} port={port}")
+
+    print("\n====================  Client  Endpoints  ====================")
+    for o in client_config.get("endpoints", []):
+        tag = o.get("tag", "-")
+        proto = o.get("type", "-")
+        peers = o.get("peers", [])
+        ports = [str(p.get("port")) for p in peers if p.get("port")]
+        port_str = ",".join(ports) if ports else "-"
+        print(f"tag={tag:<25} type={proto:<12} port={port_str}")
 
 # -----------------------
 # 主函数
