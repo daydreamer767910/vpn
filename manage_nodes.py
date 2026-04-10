@@ -399,7 +399,7 @@ def assign_ports_for_node(tag, protocols, user_ports=None):
 # -----------------------
 # 节点操作
 # -----------------------
-def add_node(tag, protocols, sub_=None, ports_=None):
+def add_node(tag, protocols, endpoints, sub_=None, ports_=None):
     if any(n["tag"] == tag for n in nodes):
         print(f"❌ 已存在 {tag}")
         return nodes
@@ -410,6 +410,7 @@ def add_node(tag, protocols, sub_=None, ports_=None):
         "tag": tag,
         "protocols": protocols,
         "ports": assigned_ports,
+        "endpoint_tags": endpoints,
     }
 
     node["source"] = sub_
@@ -418,11 +419,13 @@ def add_node(tag, protocols, sub_=None, ports_=None):
     return nodes
 
 
-def update_node(tag, protocols=None, sub_=None, ports_=None):
+def update_node(tag, protocols=None, endpoints=None, sub_=None, ports_=None):
     for n in nodes:
         if n["tag"] == tag:
             if protocols:
                 n["protocols"] = protocols
+            if endpoints:
+                n["endpoint_tags"] = endpoints
             if ports_:
                 n["ports"] = assign_ports_for_node(tag, protocols, ports_)
             if sub_:
@@ -456,9 +459,7 @@ def upsert_by_tag(arr, item):
 # -----------------------
 def build(server_config, client_config):
 
-    for node in nodes:
-        node["inbound_tags"] = []
-        node["outbound_tags"] = []
+    for node in nodes:        
         tag = node["tag"]
         
         protos = node["protocols"]
@@ -480,7 +481,7 @@ def build(server_config, client_config):
                     inbound["listen_port"] = port
 
                 upsert_by_tag(server_config["inbounds"], inbound)
-                node["inbound_tags"].append(inbound["tag"])
+
             # outbound
             if "outbound" in proto:
                 outbound = copy.deepcopy(proto["outbound"])
@@ -524,6 +525,8 @@ def build_subscription(client_config):
         for item in outbounds
         if is_valid_selector_outbound(item)
     ))
+    if not all_tags:
+        return
     detour = all_tags[-1]
     for node in nodes:
         tag = "<sub>"
@@ -664,6 +667,19 @@ def build_dynamic_outbounds(client_config):
             "url": "https://www.gstatic.com",
         }
         upsert_by_tag(client_config["outbounds"], urltest_outbound)
+
+def update_node_byconfig(server_config):
+    for node in nodes:
+        node["inbound_tags"] = [
+            tag 
+            for i in server_config["inbounds"]
+            if (tag := i.get("tag")) and tag.split("-")[0] == node.get("tag")
+        ]
+        node["outbound_tags"] = [
+            tag 
+            for i in server_config["outbounds"]
+            if (tag := i.get("tag")) and tag.split("-")[0] == node.get("tag")
+        ]
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -914,6 +930,7 @@ def main():
     parser.add_argument("--update", nargs="*")
     parser.add_argument("--delete", nargs="*")
     parser.add_argument("--protocols", nargs="*")
+    parser.add_argument("--endpoints", nargs="*")
     parser.add_argument("--firewall", action="store_true")
     parser.add_argument("--lint", action="store_true")
     parser.add_argument("--list", action="store_true")
@@ -941,6 +958,31 @@ def main():
         "dns": dns_template.get("dns-client", {})
     }
 
+    endpoints = []
+
+    if args.endpoints:
+        for p in args.endpoints:
+            endpoints.extend(p.split(","))
+
+        # 获取已有的 endpoint tag 列表
+        existing_tags = {
+            i.get("tag")
+            for i in server_config.get("endpoints", [])
+            if i.get("tag")
+        }
+
+        invalid = [ep for ep in endpoints if ep not in existing_tags]
+        if invalid:
+            raise RuntimeError(f"endpoint not exist: {invalid}")
+
+    else:
+        # 默认取全部 endpoint tag
+        endpoints = [
+            i.get("tag")
+            for i in server_config.get("endpoints", [])
+            if i.get("tag")
+        ]
+
     def is_real_protocol(name):
         if name in SPECIAL_OUTBOUNDS or name in SPECIAL_INBOUNDS:
             return False
@@ -959,11 +1001,11 @@ def main():
 
     if args.add:
         for t in args.add:
-            nodes = add_node(t, protocols, args.sub, args.port)
+            nodes = add_node(t, protocols, endpoints, args.sub, args.port)
 
     if args.update:
         for t in args.update:
-            nodes = update_node(t, protocols, args.sub, args.port)
+            nodes = update_node(t, protocols, endpoints, args.sub, args.port)
 
     if args.delete:
         for t in args.delete:
@@ -972,9 +1014,8 @@ def main():
     changed = (old_nodes != nodes)
     if changed or args.refresh:
         build(server_config, client_config)
-
         apply_patches(server_config, client_config)
-
+        update_node_byconfig(server_config)
         save_nodes()
         save_json(server_path, server_config)
         save_json(client_path, client_config)

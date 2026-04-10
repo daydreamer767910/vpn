@@ -21,6 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent
 SINGBOX_DIR = BASE_DIR / "singbox"
 JOURNAL_DB_USERS = BASE_DIR / "journal" / "db" / "users"
 USERS_FILE = SINGBOX_DIR / "users.json"
+NODES_FILE = SINGBOX_DIR / "nodes.json"
 SERVER_CONFIG_FILE = SINGBOX_DIR / "server" / "config.json"
 CLIENT_TEMPLATE_FILE = SINGBOX_DIR / "client" / "config.json"
 CONFIG_SH = BASE_DIR / "config.sh"
@@ -52,7 +53,7 @@ def ts_print(msg):
 # 命令行参数
 # ------------------------
 parser = argparse.ArgumentParser(description="Sing-box 用户管理脚本")
-parser.add_argument("--nodes", nargs="*", default=["all"])
+parser.add_argument("--nodes", nargs="*")
 parser.add_argument("--add", nargs="*")
 parser.add_argument("--delete", nargs="*")
 parser.add_argument("--clear", action="store_true")
@@ -84,11 +85,10 @@ def generate_password(length):
     chars = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
     return ''.join(random.SystemRandom().choice(chars) for _ in range(length))
 
-def create_user(name, source="cli", expire_days=None, nodes=None):
+def create_user(name, nodes, source="cli", expire_days=None):
     now = datetime.datetime.now()
     expire_at = (now + datetime.timedelta(days=expire_days)).isoformat() if expire_days else None
-    if nodes is None:
-        nodes = ["all"]
+
     return {
         "name": name,
         "uuid": str(uuid.uuid4()),
@@ -156,6 +156,31 @@ def cleanup_user_files(names):
         sub_file = uploads_root / name / f"{name}_sub.token"
         if sub_file.exists(): sub_file.unlink()
 
+def parse_and_validate(input_list, all_items, name):
+    import warnings
+    if input_list:
+        values = [
+            v.strip()
+            for item in input_list
+            for v in item.split(",")
+            if v.strip()
+        ]
+        invalid = [v for v in values if v not in all_items]
+        if invalid:
+            warnings.warn(f"{name} not exist: {invalid}", RuntimeWarning)
+
+        return values
+    return list(all_items)
+
+def get_endpoint_tags(nodes, node_tags):
+    node_tag_set = set(node_tags)
+
+    return list({
+        ep
+        for node in nodes
+        if node.get("tag") in node_tag_set
+        for ep in node.get("endpoint_tags", [])
+    })
 # ------------------------
 # 主逻辑
 # ------------------------
@@ -166,6 +191,12 @@ def main():
         return
 
     users = load_json(USERS_FILE, [])
+    nodes = load_json(NODES_FILE, {}).get("nodes", [])
+    all_nodes = {
+        node.get("tag")
+        for node in nodes
+        if node.get("tag")
+    }
     existing_names = {u["name"] for u in users}
     updated_users = set()
     users_updated = False
@@ -173,6 +204,7 @@ def main():
     force_apply = args.apply
     now = datetime.datetime.now()
 
+    node_names = parse_and_validate(args.nodes, all_nodes, "node")
     # ------------------------
     # 自动更新 journal 用户
     # ------------------------
@@ -182,7 +214,7 @@ def main():
         if to_add:
             ts_print(f"[UPDATE] 发现新增用户: {', '.join(to_add)}")
             for name in to_add:
-                new_user = create_user(name, source="journal")
+                new_user = create_user(name, node_names, source="journal")
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
@@ -213,7 +245,7 @@ def main():
         for name_str in args.add: names.extend(split_user_input(name_str))
         for name in names:
             if name not in existing_names:
-                new_user = create_user(name, source="cli", expire_days=args.extend, nodes=args.nodes)
+                new_user = create_user(name, node_names, source="cli", expire_days=args.extend)
                 users.append(new_user)
                 existing_names.add(name)
                 updated_users.add(name)
@@ -308,8 +340,7 @@ def main():
         new_users = [
             make_user_entry(protocol, u) 
             for u in users 
-            if u.get("enabled", True) 
-            and (not u.get("nodes") or "all" in u.get("nodes") or node in u.get("nodes"))
+            if u.get("enabled", True) and node in u.get("nodes")
         ]
         if force_apply or old_users != new_users:
             inbound["users"] = new_users
@@ -327,7 +358,7 @@ def main():
         if user["name"] not in updated_users: continue
         if user.get("enabled", True):
             new_config = copy.deepcopy(client_template)
-            nodes = user.get("nodes") or []
+            node_tags = user.get("nodes")
             # 真正过滤 outbounds，不属于用户 tags 的删除
             filtered_outbounds = []
             for outbound in new_config.get("outbounds", []):
@@ -338,7 +369,7 @@ def main():
                     filtered_outbounds.append(outbound)
                     continue
                 # 跳过不属于当前 outbound 的用户
-                if nodes and "all" not in nodes and node not in nodes:
+                if node not in node_tags:
                     continue
                 protocol = outbound.get("type","").lower()
                 if protocol == "tuic":
@@ -359,6 +390,13 @@ def main():
                 filtered_outbounds.append(outbound)
             # 替换 new_config 的 outbounds
             new_config["outbounds"] = filtered_outbounds
+
+            ep_tags = set(get_endpoint_tags(nodes, node_tags))
+            new_config["endpoints"] = [
+                ep
+                for ep in new_config.get("endpoints", [])
+                if ep.get("tag") in ep_tags
+            ]
             manage_file = client_manage_dir / f"{user['name']}.json"
             save_json_atomic(manage_file,new_config)
             ts_print(f"已生成客户端配置 -> {manage_file}")
