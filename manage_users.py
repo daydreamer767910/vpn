@@ -225,6 +225,32 @@ def build_dynamic_outbounds(client_config):
         "url": "https://www.gstatic.com",
     }
     client_config["outbounds"].append(urltest_outbound)
+
+def build_route(client_config):
+    eps = client_config.get("endpoints", [])
+
+    # 收集 wireguard endpoint 的 tag
+    all_tags = list(dict.fromkeys(
+        ep.get("tag")
+        for ep in eps
+        if ep.get("type") == "wireguard" and ep.get("tag")
+    ))
+
+    if not all_tags:
+        return
+
+    # 确保 route 存在
+    route = client_config.setdefault("route", {})
+    rules = route.setdefault("rules", [])
+
+    # 构造规则
+    rule = {
+        "inbound": all_tags,
+        "outbound": "direct"
+    }
+
+    # 插入到最前面（优先级最高）
+    rules.insert(0, rule)
 # ------------------------
 # 主逻辑
 # ------------------------
@@ -439,12 +465,17 @@ def main():
             filtered_eps = []
             for ep in new_config.get("endpoints", []):
                 tag = ep.get("tag")
+                # 订阅
+                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes) and ep.get("detour"):
+                    filtered_eps.append(ep)
+                    continue
                 if not tag_belongs_to_user(tag,"endpoint_tags",user.get("nodes"),nodes):
                     continue
                 filtered_eps.append(ep)
             new_config["endpoints"] = filtered_eps
 
             build_dynamic_outbounds(new_config)
+            build_route(new_config)
 
             manage_file = client_manage_dir / f"{user['name']}.json"
             save_json_atomic(manage_file,new_config)

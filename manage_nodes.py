@@ -461,7 +461,7 @@ def build(server_config, client_config):
 
     for node in nodes:        
         tag = node["tag"]
-        node.setdefault("inbound_tags", [])
+        node["inbound_tags"] = []
         protos = node["protocols"]
 
         for i, proto_name in enumerate(protos):
@@ -493,44 +493,13 @@ def build(server_config, client_config):
                     outbound["server_port"] = port
                 upsert_by_tag(client_config["outbounds"], outbound)
 
-def build_route(client_config):
-    eps = client_config.get("endpoints", [])
-
-    # 收集 wireguard endpoint 的 tag
-    all_tags = list(dict.fromkeys(
-        ep.get("tag")
-        for ep in eps
-        if ep.get("type") == "wireguard" and ep.get("tag")
-    ))
-
-    if not all_tags:
-        return
-
-    # 确保 route 存在
-    route = client_config.setdefault("route", {})
-    rules = route.setdefault("rules", [])
-
-    # 构造规则
-    rule = {
-        "inbound": all_tags,
-        "outbound": "direct"
-    }
-
-    # 插入到最前面（优先级最高）
-    rules.insert(0, rule)
-
 def build_subscription(client_config):
-    outbounds = client_config.get("outbounds", [])
-    all_tags = list(dict.fromkeys(
-        item.get("tag")
-        for item in outbounds
-        if is_valid_selector_outbound(item)
-    ))
-    if not all_tags:
-        return
-    detour = all_tags[-1]
     for node in nodes:
-        node.setdefault("subscription_tags", [])
+        inbound_tags = node["inbound_tags"]
+        if not inbound_tags:
+            continue
+        detour = inbound_tags[-1]
+        node["subscription_tags"] = []
         # ---------- 获取节点 ----------
         if node.get("source"):
             sub = parse_subscription(node["source"])
@@ -544,11 +513,13 @@ def build_subscription(client_config):
             continue
 
         for ep in endpoints:
+            ep["tag"] = f"{node['tag']}-sub-{ep.get("tag")}"
             node["subscription_tags"].append(ep.get("tag"))
             ep["detour"] = detour
             upsert_by_tag(client_config["endpoints"], ep)
 
         for ob in outbounds:
+            ob["tag"] = f"{node['tag']}-sub-{ob.get("tag")}"
             node["subscription_tags"].append(ob.get("tag"))
             ob["detour"] = detour
             upsert_by_tag(client_config["outbounds"], ob)
@@ -604,7 +575,6 @@ def apply_patches(server_config, client_config):
     # -------- selector / urltest --------
     build_subscription(client_config)
 
-    build_route(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
 
