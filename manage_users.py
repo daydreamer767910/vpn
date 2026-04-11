@@ -196,6 +196,35 @@ def tag_belongs_to_user(tag, type_, user_node_names, all_nodes) -> bool:
             return True
 
     return False
+
+def build_dynamic_outbounds(client_config):
+    outbounds = client_config.get("outbounds", [])
+    endpoints = client_config.get("endpoints", [])
+    all_tags = list(dict.fromkeys(
+        item.get("tag")
+        for item in (endpoints + outbounds)
+        if item.get("type") != "direct"
+    ))
+
+    if not all_tags:
+        return
+
+    selector_outbound = {
+        "tag": "auto-selector",
+        "type": "selector",
+        "outbounds": all_tags,
+        "default": all_tags[-1],
+        "interrupt_exist_connections": False,
+    }
+    client_config["outbounds"].append(selector_outbound)
+
+    urltest_outbound = {
+        "tag": "auto-proxy",
+        "type": "urltest",
+        "outbounds": ["auto-selector"],
+        "url": "https://www.gstatic.com",
+    }
+    client_config["outbounds"].append(urltest_outbound)
 # ------------------------
 # 主逻辑
 # ------------------------
@@ -375,9 +404,13 @@ def main():
             # 真正过滤 outbounds，不属于用户 tags 的删除
             filtered_outbounds = []
             for outbound in new_config.get("outbounds", []):
+                # direct
+                if outbound.get("type") == "direct":
+                    filtered_outbounds.append(outbound)
+                    continue
                 tag = outbound.get("tag","")
                 # 订阅
-                if tag_belongs_to_user(tag,"outbound_tags",user.get("nodes"),nodes) and outbound.get("detour"):
+                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes) and outbound.get("detour"):
                     filtered_outbounds.append(outbound)
                     continue
                 # 跳过不属于当前 outbound 的用户
@@ -411,6 +444,8 @@ def main():
                 filtered_eps.append(ep)
             new_config["endpoints"] = filtered_eps
 
+            build_dynamic_outbounds(new_config)
+
             manage_file = client_manage_dir / f"{user['name']}.json"
             save_json_atomic(manage_file,new_config)
             ts_print(f"已生成客户端配置 -> {manage_file}")
@@ -425,7 +460,7 @@ def main():
         else:
             sub_url = f"https://{first_domain}/sub/{user['subscription_token']}"
             sub_file.write_text(sub_url,encoding="utf-8")
-            ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}")
+            ts_print(f"已发布订阅地址: {sub_file} -> {sub_url}#{first_domain}-{user["name"]}")
     # ------------------------
     # 重启服务(放在最后一步)
     # ------------------------   

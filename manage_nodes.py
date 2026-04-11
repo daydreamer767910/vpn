@@ -530,8 +530,7 @@ def build_subscription(client_config):
         return
     detour = all_tags[-1]
     for node in nodes:
-        node.setdefault("outbound_tags", [])
-        node.setdefault("endpoint_tags", [])
+        node.setdefault("subscription_tags", [])
         # ---------- 获取节点 ----------
         if node.get("source"):
             sub = parse_subscription(node["source"])
@@ -545,12 +544,12 @@ def build_subscription(client_config):
             continue
 
         for ep in endpoints:
-            node["endpoint_tags"].append(ep.get("tag"))
+            node["subscription_tags"].append(ep.get("tag"))
             ep["detour"] = detour
             upsert_by_tag(client_config["endpoints"], ep)
 
         for ob in outbounds:
-            node["outbound_tags"].append(ob.get("tag"))
+            node["subscription_tags"].append(ob.get("tag"))
             ob["detour"] = detour
             upsert_by_tag(client_config["outbounds"], ob)
 
@@ -604,7 +603,7 @@ def apply_patches(server_config, client_config):
 
     # -------- selector / urltest --------
     build_subscription(client_config)
-    build_dynamic_outbounds(client_config)
+
     build_route(client_config)
     build_defaults(server_config)
     build_defaults(client_config, True)
@@ -620,55 +619,6 @@ def is_valid_selector_outbound(o):
         return False
 
     return True
-
-def build_dynamic_outbounds(client_config):
-    outbounds = client_config.get("outbounds", [])
-    endpoints = client_config.get("endpoints", [])
-    all_tags = list(dict.fromkeys(
-        item.get("tag")
-        for item in (endpoints + outbounds)
-        if is_valid_selector_outbound(item)
-    ))
-
-    if not all_tags:
-        return
-    local_tags  = [t for t in all_tags if t and not t.startswith("<sub>-")]
-    remote_tags = [t for t in all_tags if t and t.startswith("<sub>-")]
-
-    if local_tags:
-        selector_outbound_local = {
-            "tag": "auto-selector",
-            "type": "selector",
-            "outbounds": local_tags,
-            "default": local_tags[-1],
-            "interrupt_exist_connections": False,
-        }
-        upsert_by_tag(client_config["outbounds"], selector_outbound_local)
-
-    if remote_tags:
-        selector_outbound_remote = {
-            "tag": "auto-selector-sub",
-            "type": "selector",
-            "outbounds": remote_tags,
-            "default": remote_tags[-1],
-            "interrupt_exist_connections": False,
-        }
-        upsert_by_tag(client_config["outbounds"], selector_outbound_remote)
-
-    urltest_sources = []
-    if local_tags:
-        urltest_sources.append("auto-selector")
-    if remote_tags:
-        urltest_sources.append("auto-selector-sub")
-
-    if urltest_sources:
-        urltest_outbound = {
-            "tag": "auto-proxy",
-            "type": "urltest",
-            "outbounds": urltest_sources,
-            "url": "https://www.gstatic.com",
-        }
-        upsert_by_tag(client_config["outbounds"], urltest_outbound)
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
