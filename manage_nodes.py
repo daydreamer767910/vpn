@@ -461,7 +461,7 @@ def build(server_config, client_config):
 
     for node in nodes:        
         tag = node["tag"]
-        
+        node.setdefault("inbound_tags", [])
         protos = node["protocols"]
 
         for i, proto_name in enumerate(protos):
@@ -530,6 +530,8 @@ def build_subscription(client_config):
         return
     detour = all_tags[-1]
     for node in nodes:
+        node.setdefault("outbound_tags", [])
+        node.setdefault("endpoint_tags", [])
         # ---------- 获取节点 ----------
         if node.get("source"):
             sub = parse_subscription(node["source"])
@@ -537,17 +539,18 @@ def build_subscription(client_config):
             outbounds = sub.get("outbounds", [])
             # ---------- 协议过滤 ----------
             outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
-            node["outbound_tags"].append(outbounds)
+            
             endpoints = sub.get("endpoints", [])
-            node["endpoint_tags"].append(endpoints)
         else:
             continue
 
         for ep in endpoints:
+            node["endpoint_tags"].append(ep.get("tag"))
             ep["detour"] = detour
             upsert_by_tag(client_config["endpoints"], ep)
 
         for ob in outbounds:
+            node["outbound_tags"].append(ob.get("tag"))
             ob["detour"] = detour
             upsert_by_tag(client_config["outbounds"], ob)
 
