@@ -172,15 +172,34 @@ def parse_and_validate(input_list, all_items, name):
         return values
     return list(all_items)
 
-def get_endpoint_tags(nodes, node_tags):
-    node_tag_set = set(node_tags)
+def resolve_user_nodes(node_names: list, all_nodes: list) -> list:
+    """
+    从 nodes.json 中解析出用户实际拥有的 node objects
+    """
+    node_set = set(node_names)
 
-    return list({
-        ep
-        for node in nodes
-        if node.get("tag") in node_tag_set
-        for ep in node.get("endpoint_tags", [])
-    })
+    return [
+        node
+        for node in all_nodes
+        if node.get("tag") in node_set
+    ]
+
+def tag_belongs_to_user(tag: str, user_node_names: list, all_nodes: list) -> bool:
+    """
+    判断 tag 是否属于用户 node 权限范围
+    """
+
+    user_nodes = resolve_user_nodes(user_node_names, all_nodes)
+
+    for node in user_nodes:
+        if (
+            tag in node.get("inbound_tags", []) or
+            tag in node.get("outbound_tags", []) or
+            tag in node.get("endpoint_tags", [])
+        ):
+            return True
+
+    return False
 # ------------------------
 # 主逻辑
 # ------------------------
@@ -334,13 +353,11 @@ def main():
     for inbound in server_config.get("inbounds", []):
         protocol = inbound.get("type","").lower()
         tag = inbound.get("tag")
-        node = tag.split("-")[0]
         old_users = inbound.get("users",[])
-        #new_users = [make_user_entry(protocol,u) for u in users if u.get("enabled",True)]
         new_users = [
             make_user_entry(protocol, u) 
             for u in users 
-            if u.get("enabled", True) and node in u.get("nodes")
+            if u.get("enabled", True) and tag_belongs_to_user(tag,u.get("nodes"),nodes)
         ]
         if force_apply or old_users != new_users:
             inbound["users"] = new_users
@@ -363,13 +380,8 @@ def main():
             filtered_outbounds = []
             for outbound in new_config.get("outbounds", []):
                 tag = outbound.get("tag","")
-                node = tag.split("-")[0]
-                if node == "<sub>":
-                    # 保留订阅
-                    filtered_outbounds.append(outbound)
-                    continue
                 # 跳过不属于当前 outbound 的用户
-                if node not in node_tags:
+                if not tag_belongs_to_user(tag,user.get("nodes"),nodes):
                     continue
                 protocol = outbound.get("type","").lower()
                 if protocol == "tuic":
@@ -391,12 +403,14 @@ def main():
             # 替换 new_config 的 outbounds
             new_config["outbounds"] = filtered_outbounds
 
-            ep_tags = set(get_endpoint_tags(nodes, node_tags))
-            new_config["endpoints"] = [
-                ep
-                for ep in new_config.get("endpoints", [])
-                if ep.get("tag") in ep_tags
-            ]
+            filtered_eps = []
+            for ep in new_config.get("endpoints", []):
+                tag = ep.get("tag")
+                if not tag_belongs_to_user(tag,user.get("nodes"),nodes):
+                    continue
+                filtered_eps.append(ep)
+            new_config["endpoints"] = filtered_eps
+
             manage_file = client_manage_dir / f"{user['name']}.json"
             save_json_atomic(manage_file,new_config)
             ts_print(f"已生成客户端配置 -> {manage_file}")

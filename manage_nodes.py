@@ -481,6 +481,7 @@ def build(server_config, client_config):
                     inbound["listen_port"] = port
 
                 upsert_by_tag(server_config["inbounds"], inbound)
+                node["inbound_tags"].append(inbound.get("tag"))
 
             # outbound
             if "outbound" in proto:
@@ -529,26 +530,24 @@ def build_subscription(client_config):
         return
     detour = all_tags[-1]
     for node in nodes:
-        tag = "<sub>"
         # ---------- 获取节点 ----------
         if node.get("source"):
             sub = parse_subscription(node["source"])
 
             outbounds = sub.get("outbounds", [])
+            # ---------- 协议过滤 ----------
+            outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
+            node["outbound_tags"].append(outbounds)
             endpoints = sub.get("endpoints", [])
+            node["endpoint_tags"].append(endpoints)
         else:
             continue
 
         for ep in endpoints:
-            ep["tag"] = f"{tag}-{ep["tag"]}"
             ep["detour"] = detour
             upsert_by_tag(client_config["endpoints"], ep)
 
-        # ---------- 协议过滤 ----------
-        outbounds = [o for o in outbounds if o.get("type") not in SPECIAL_OUTBOUNDS]
-
         for ob in outbounds:
-            ob["tag"] = f"{tag}-{ob["tag"]}"
             ob["detour"] = detour
             upsert_by_tag(client_config["outbounds"], ob)
 
@@ -667,19 +666,6 @@ def build_dynamic_outbounds(client_config):
             "url": "https://www.gstatic.com",
         }
         upsert_by_tag(client_config["outbounds"], urltest_outbound)
-
-def update_node_byconfig(server_config):
-    for node in nodes:
-        node["inbound_tags"] = [
-            tag 
-            for i in server_config["inbounds"]
-            if (tag := i.get("tag")) and tag.split("-")[0] == node.get("tag")
-        ]
-        node["outbound_tags"] = [
-            tag 
-            for i in server_config["outbounds"]
-            if (tag := i.get("tag")) and tag.split("-")[0] == node.get("tag")
-        ]
 
 def run_manage_users():
     script = BASE_DIR / "manage_users.py"
@@ -1015,7 +1001,6 @@ def main():
     if changed or args.refresh:
         build(server_config, client_config)
         apply_patches(server_config, client_config)
-        update_node_byconfig(server_config)
         save_nodes()
         save_json(server_path, server_config)
         save_json(client_path, client_config)
