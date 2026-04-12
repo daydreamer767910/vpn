@@ -440,18 +440,35 @@ def delete_node(tag):
     return [n for n in nodes if n["tag"] != tag]
 
 
-def upsert_by_tag(arr, item):
+def upsert_by_tag(arr, item, overwrite=True, auto_rename=False):
     tag = item.get("tag")
+
     if not tag:
         arr.append(item)
-        return
+        return tag
 
     for i, x in enumerate(arr):
         if x.get("tag") == tag:
-            arr[i] = item
-            return
+            if overwrite:
+                arr[i] = item
+                return tag
+            elif auto_rename:
+                break
+            else:
+                return None # 不覆盖也不加
+
+    # ---------- 自动改名 ----------
+    if auto_rename:
+        existing_tags = {x.get("tag") for x in arr}
+        base = tag
+        i = 1
+        while tag in existing_tags:
+            tag = f"{base}#{i}"
+            i += 1
+        item["tag"] = tag
 
     arr.append(item)
+    return tag
 
 
 # -----------------------
@@ -513,16 +530,25 @@ def build_subscription(client_config):
             continue
 
         for ep in endpoints:
-            ep["tag"] = f"{node['tag']}-sub-{ep.get("tag")}"
-            node["subscription_tags"].append(ep.get("tag"))
-            ep["detour"] = detour
-            upsert_by_tag(client_config["endpoints"], ep)
+            # direct
+            tag = upsert_by_tag(client_config["endpoints"], ep, overwrite=False, auto_rename=True)
+            node["subscription_tags"].append(tag)
+            # detour
+            detour_ep = copy.deepcopy(ep)
+            detour_ep["tag"] = f"{node['tag']}-detour-{detour_ep.get("tag")}"
+            node["subscription_tags"].append(detour_ep.get("tag"))
+            detour_ep["detour"] = detour
+            upsert_by_tag(client_config["endpoints"], detour_ep)
 
         for ob in outbounds:
-            ob["tag"] = f"{node['tag']}-sub-{ob.get("tag")}"
-            node["subscription_tags"].append(ob.get("tag"))
-            ob["detour"] = detour
-            upsert_by_tag(client_config["outbounds"], ob)
+            tag = upsert_by_tag(client_config["outbounds"], ob, overwrite=False, auto_rename=True)
+            node["subscription_tags"].append(tag)
+            # detour
+            detour_ob = copy.deepcopy(ob)
+            detour_ob["tag"] = f"{node['tag']}-detour-{detour_ob.get("tag")}"
+            node["subscription_tags"].append(detour_ob.get("tag"))
+            detour_ob["detour"] = detour
+            upsert_by_tag(client_config["outbounds"], detour_ob)
 
 def build_defaults(config, ui_=None):
     if "log" not in config:
@@ -876,7 +902,7 @@ def main():
         # 获取已有的 endpoint tag 列表
         existing_tags = {
             i.get("tag")
-            for i in server_config.get("endpoints", [])
+            for i in client_config.get("endpoints", [])
             if i.get("tag")
         }
 
@@ -888,7 +914,7 @@ def main():
         # 默认取全部 endpoint tag
         endpoints = [
             i.get("tag")
-            for i in server_config.get("endpoints", [])
+            for i in client_config.get("endpoints", [])
             if i.get("tag")
         ]
 

@@ -14,6 +14,7 @@ import random
 import string
 import argparse
 import subprocess
+import copy
 import shutil
 from pathlib import Path
 
@@ -155,6 +156,15 @@ def export_to_template():
             ]
         }
         endpoint_client_list.append(client_ep)
+        # 增加一个detour ep, anti GFW
+        detour_ep = copy.deepcopy(client_ep)
+        detour_ep["tag"] = f"{name}-ep-detour"
+        detour_ep["detour"] = "auto-selector"
+
+        for peer in detour_ep.get("peers", []):
+            peer["address"] = "127.0.0.1"
+
+        endpoint_client_list.append(detour_ep)
 
     # --------------------
     # 读取 template（保留原内容）
@@ -242,7 +252,7 @@ def list_endpoints():
         print("[INFO] 暂无资源")
         return
     for r in resources:
-        print(f"- {r['name']} ({r['type']}) status={r['status']} listen_port={r['data']['listen_port']} address={r['data']['address']} peer_ip={r['data']['peer']['allowed_ips'][0]}")
+        print(f"- {r['name']} listen_port={r['data']['listen_port']} address={r['data']['address']} peer_ip={r['data']['peer']['allowed_ips'][0]}")
 
 # ------------------ CLI ------------------
 

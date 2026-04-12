@@ -14,6 +14,13 @@ import json, os, shutil, uuid, secrets, random, string, argparse, subprocess, da
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
+SPECIAL_OUTBOUNDS = {
+    "direct",
+    "block",
+    "tor",
+    "selector",
+    "urltest",
+}
 # ------------------------
 # 路径设置
 # ------------------------
@@ -200,28 +207,47 @@ def tag_belongs_to_user(tag, type_, user_node_names, all_nodes) -> bool:
 def build_dynamic_outbounds(client_config):
     outbounds = client_config.get("outbounds", [])
     endpoints = client_config.get("endpoints", [])
-    all_tags = list(dict.fromkeys(
+    all_outtags = list(dict.fromkeys(
         item.get("tag")
-        for item in (endpoints + outbounds)
+        for item in outbounds
+        if item.get("type") != "direct"
+    ))
+    all_eptags = list(dict.fromkeys(
+        item.get("tag")
+        for item in endpoints
         if item.get("type") != "direct"
     ))
 
-    if not all_tags:
+    if not all_outtags:
         return
 
     selector_outbound = {
         "tag": "auto-selector",
         "type": "selector",
-        "outbounds": all_tags,
-        "default": all_tags[-1],
+        "outbounds": all_outtags,
+        "default": all_outtags[-1],
         "interrupt_exist_connections": False,
     }
     client_config["outbounds"].append(selector_outbound)
 
+    if all_eptags:
+        selector_outbound = {
+            "tag": "auto-selector-ep",
+            "type": "selector",
+            "outbounds": all_eptags,
+            "default": all_eptags[0],
+            "interrupt_exist_connections": False,
+        }
+        client_config["outbounds"].append(selector_outbound)
+
     urltest_outbound = {
         "tag": "auto-proxy",
         "type": "urltest",
-        "outbounds": ["auto-selector"],
+        "outbounds": [
+            o.get("tag")
+            for o in client_config.get("outbounds", [])
+            if o.get("tag") and o.get("type") not in SPECIAL_OUTBOUNDS
+        ],
         "url": "https://www.gstatic.com",
     }
     client_config["outbounds"].append(urltest_outbound)
@@ -436,7 +462,7 @@ def main():
                     continue
                 tag = outbound.get("tag","")
                 # 订阅
-                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes) and outbound.get("detour"):
+                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes):
                     filtered_outbounds.append(outbound)
                     continue
                 # 跳过不属于当前 outbound 的用户
@@ -466,7 +492,7 @@ def main():
             for ep in new_config.get("endpoints", []):
                 tag = ep.get("tag")
                 # 订阅
-                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes) and ep.get("detour"):
+                if tag_belongs_to_user(tag,"subscription_tags",user.get("nodes"),nodes):
                     filtered_eps.append(ep)
                     continue
                 if not tag_belongs_to_user(tag,"endpoint_tags",user.get("nodes"),nodes):
