@@ -206,51 +206,71 @@ def tag_belongs_to_user(tag, type_, user_node_names, all_nodes) -> bool:
 
 def build_dynamic_outbounds(client_config):
     outbounds = client_config.get("outbounds", [])
-    endpoints = client_config.get("endpoints", [])
-    all_outtags = list(dict.fromkeys(
-        item.get("tag")
-        for item in outbounds
-        if item.get("type") != "direct"
-    ))
+    endpoints = client_config.get("endpoints") or []
     all_eptags = list(dict.fromkeys(
         item.get("tag")
         for item in endpoints
         if item.get("type") != "direct"
     ))
+    # ------------------------
+    # 收集 tag
+    # ------------------------
+    all_outtags = []
+    clean_outtags = []  # 没有 detour 的
 
-    if not all_outtags:
+    for o in outbounds:
+        tag = o.get("tag")
+        if not tag:
+            continue
+        if o.get("type") == "direct":
+            continue
+        all_outtags.append(tag)
+
+        # 关键逻辑：没有 detour 才进 selector
+        if o.get("detour") is None:
+            clean_outtags.append(tag)
+
+    # 去重（保持顺序）
+    all_outtags = list(dict.fromkeys(all_outtags))
+    clean_outtags = list(dict.fromkeys(clean_outtags))
+
+    if not clean_outtags:
         return
-
-    selector_outbound = {
-        "tag": "auto-selector",
+    # ------------------------
+    # auto-selector（只放无 detour）
+    # ------------------------
+    auto_selector = { 
+        "tag": "auto-selector", 
         "type": "selector",
-        "outbounds": all_outtags,
+        "outbounds": clean_outtags,
+        "default": clean_outtags[-1],
+        "interrupt_exist_connections": False,
+    } 
+    client_config["outbounds"].append(auto_selector)
+
+    # ------------------------
+    # all-selector（全集）
+    # ------------------------
+    all_selector = {
+        "tag": "all-selector",
+        "type": "selector",
+        "outbounds": (all_eptags or []) + all_outtags,
         "default": all_outtags[-1],
         "interrupt_exist_connections": False,
     }
-    client_config["outbounds"].append(selector_outbound)
 
-    if all_eptags:
-        selector_outbound = {
-            "tag": "auto-selector-ep",
-            "type": "selector",
-            "outbounds": all_eptags,
-            "default": all_eptags[0],
-            "interrupt_exist_connections": False,
-        }
-        client_config["outbounds"].append(selector_outbound)
-
-    urltest_outbound = {
-        "tag": "auto-proxy",
-        "type": "urltest",
-        "outbounds": [
-            o.get("tag")
-            for o in client_config.get("outbounds", [])
-            if o.get("tag") and o.get("type") not in SPECIAL_OUTBOUNDS
-        ],
-        "url": "https://www.gstatic.com",
-    }
+    client_config["outbounds"].append(all_selector)
+    # ------------------------
+    # auto-proxy
+    # ------------------------
+    urltest_outbound = { 
+        "tag": "auto-proxy", 
+        "type": "urltest", 
+        "outbounds": clean_outtags, 
+        "url": "https://www.gstatic.com", 
+    } 
     client_config["outbounds"].append(urltest_outbound)
+    
 
 def build_route(client_config):
     eps = client_config.get("endpoints", [])

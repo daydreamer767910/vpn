@@ -31,6 +31,6 @@
     ],
     "auto_detect_interface": true,
     "default_domain_resolver": "local",
-    "final": "auto-proxy"
+    "final": "all-selector"
   }
 }
