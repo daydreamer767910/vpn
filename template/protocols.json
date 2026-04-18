@@ -16,46 +16,6 @@
 	  "strict_route": true
     }
   },
-  "vless": {
-    "inbound":{
-      "type": "vless",
-      "listen": "::",
-      "listen_port": 8443,
-      "tag": "__DOLLAR__tag-vless",
-      "tls": "__DOLLAR__tls:tls-reality-in",
-      "users": []
-    },
-    "outbound":{
-      "type": "vless",
-      "tag": "__DOLLAR__tag-vless",
-      "server": "${DOMAIN}",
-      "server_port": 8443,
-      "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
-      "flow": "xtls-rprx-vision",
-      "tls": "__DOLLAR__tls:tls-reality-out"
-    }
-  },
-  "tuic":{
-	"inbound":{
-		"type": "tuic",
-		"congestion_control": "bbr",
-		"listen": "::",
-		"listen_port": 443,
-		"tag": "__DOLLAR__tag-tuic",
-		"tls": "__DOLLAR__tls:tls-in",
-		"users": []
-	},
-	"outbound":{
-		"type": "tuic",
-		"tag": "__DOLLAR__tag-tuic",
-		"server": "${DOMAIN}",
-		"server_port": 443,
-		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
-		"password": "123456",
-		"congestion_control": "bbr",
-		"tls": "__DOLLAR__tls:tls-out"
-	}
-  },
   "hysteria2":{
 	"inbound":{
 		"listen": "::",
@@ -85,5 +45,45 @@
 		"password": "123456",
 		"tls": "__DOLLAR__tls:tls-out"
 	}
+  },
+  "tuic":{
+	"inbound":{
+		"type": "tuic",
+		"congestion_control": "bbr",
+		"listen": "::",
+		"listen_port": 443,
+		"tag": "__DOLLAR__tag-tuic",
+		"tls": "__DOLLAR__tls:tls-in",
+		"users": []
+	},
+	"outbound":{
+		"type": "tuic",
+		"tag": "__DOLLAR__tag-tuic",
+		"server": "${DOMAIN}",
+		"server_port": 443,
+		"uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
+		"password": "123456",
+		"congestion_control": "bbr",
+		"tls": "__DOLLAR__tls:tls-out"
+	}
+  },
+  "vless": {
+    "inbound":{
+      "type": "vless",
+      "listen": "::",
+      "listen_port": 8443,
+      "tag": "__DOLLAR__tag-vless",
+      "tls": "__DOLLAR__tls:tls-reality-in",
+      "users": []
+    },
+    "outbound":{
+      "type": "vless",
+      "tag": "__DOLLAR__tag-vless",
+      "server": "${DOMAIN}",
+      "server_port": 8443,
+      "uuid": "1f767449-3d2c-43f9-972f-3bffc3fcfdf7",
+      "flow": "xtls-rprx-vision",
+      "tls": "__DOLLAR__tls:tls-reality-out"
+    }
   }
 }

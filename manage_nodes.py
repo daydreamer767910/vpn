@@ -769,10 +769,11 @@ def lint_config(server_config, client_config):
     def check_dns(dns):
         if not dns:
             return
-        for s in dns.get("servers", []):
-            detour = s.get("detour")
-            if detour and detour not in out_tags:
-                errors.append(f"❌ dns detour 不存在: {detour}")
+        # 收集所有 server 的 tag
+        s_tags = [s.get("tag") for s in dns.get("servers", []) if s.get("tag")]
+        # 检查 final 是否存在于 tag 列表
+        if dns.get("final") and dns.get("final") not in s_tags:
+            errors.append(f"❌ dns final 不存在: {dns.get('final')}")
 
     check_dns(server_config.get("dns"))
     check_dns(client_config.get("dns"))

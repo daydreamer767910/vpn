@@ -216,7 +216,6 @@ def build_dynamic_outbounds(client_config):
     # 收集 tag
     # ------------------------
     all_outtags = []
-    clean_outtags = []  # 没有 detour 的
 
     for o in outbounds:
         tag = o.get("tag")
@@ -226,27 +225,11 @@ def build_dynamic_outbounds(client_config):
             continue
         all_outtags.append(tag)
 
-        # 关键逻辑：没有 detour 才进 selector
-        if o.get("detour") is None:
-            clean_outtags.append(tag)
-
     # 去重（保持顺序）
     all_outtags = list(dict.fromkeys(all_outtags))
-    clean_outtags = list(dict.fromkeys(clean_outtags))
 
-    if not clean_outtags:
+    if not all_outtags:
         return
-    # ------------------------
-    # auto-selector（只放无 detour）
-    # ------------------------
-    auto_selector = { 
-        "tag": "auto-selector", 
-        "type": "selector",
-        "outbounds": clean_outtags,
-        "default": clean_outtags[-1],
-        "interrupt_exist_connections": False,
-    } 
-    client_config["outbounds"].append(auto_selector)
 
     # ------------------------
     # all-selector（全集）
@@ -255,22 +238,11 @@ def build_dynamic_outbounds(client_config):
         "tag": "all-selector",
         "type": "selector",
         "outbounds": (all_eptags or []) + all_outtags,
-        "default": all_outtags[-1],
+        "default": all_outtags[0],
         "interrupt_exist_connections": False,
     }
 
-    client_config["outbounds"].append(all_selector)
-    # ------------------------
-    # auto-proxy
-    # ------------------------
-    urltest_outbound = { 
-        "tag": "auto-proxy", 
-        "type": "urltest", 
-        "outbounds": clean_outtags, 
-        "url": "https://www.gstatic.com", 
-    } 
-    client_config["outbounds"].append(urltest_outbound)
-    
+    client_config["outbounds"].append(all_selector)  
 
 def build_route(client_config):
     eps = client_config.get("endpoints", [])
