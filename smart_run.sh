@@ -28,7 +28,7 @@ check_cert() {
     # Compare fullchain.pem
     src_hash=$(sudo sha256sum "$CERT_SRC/fullchain.pem" | awk '{print $1}')
     if [ -f "$CERT_DST/fullchain.pem" ]; then
-        dst_hash=$(sha256sum "$CERT_DST/fullchain.pem" | awk '{print $1}')
+        dst_hash=$(sudo sha256sum "$CERT_DST/fullchain.pem" | awk '{print $1}')
     else
         dst_hash="MISSING"
     fi
@@ -40,7 +40,7 @@ check_cert() {
     # Compare privkey.pem
     src_hash=$(sudo sha256sum "$CERT_SRC/privkey.pem" | awk '{print $1}')
     if [ -f "$CERT_DST/privkey.pem" ]; then
-        dst_hash=$(sha256sum "$CERT_DST/privkey.pem" | awk '{print $1}')
+        dst_hash=$(sudo sha256sum "$CERT_DST/privkey.pem" | awk '{print $1}')
     else
         dst_hash="MISSING"
     fi
