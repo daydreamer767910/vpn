@@ -64,7 +64,7 @@ check_cert() {
 copy_cert() {
     log "Copying certificates to Nginx and Sing-box directories..."
     mkdir -p "$CERT_DST"
-    sudo rsync -a --copy-links "$CERT_SRC"/ "$CERT_DST"/
+    sudo rsync -a --copy-links --chown="$DEPLOY_USER:$DEPLOY_USER" "$CERT_SRC"/ "$CERT_DST"/
     log "Certificates copied successfully."
 }
 
