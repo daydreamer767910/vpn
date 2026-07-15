@@ -52,7 +52,8 @@ check_cert() {
     if [ "$changed" = true ]; then
         log "→ Certificates changed, syncing..."
         copy_cert
-        # 不直接重启，重启由内存检查控制
+        reload_docker
+        
     else
         log "Certificates are already up-to-date."
     fi
